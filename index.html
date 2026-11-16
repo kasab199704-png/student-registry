@@ -111,6 +111,32 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 /* the A4 sheet itself stays paper-white in both themes */
 /* หนังสือรับรอง แบบที่ 10: A4, ขอบซ้าย 3 ซม. ขวา 2 ซม. ล่าง 2 ซม., ครุฑสูง 3 ซม. กลางหน้า, TH Sarabun New 16 pt, ย่อหน้า 2.5 ซม.
    The text column is 16 cm wide; its centre line (8 cm from the left margin) is the ครุฑ centre line used to start the date and signature block. */
+.photo-thumb{width:60px;height:80px;border:1px solid var(--line);border-radius:4px;display:grid;place-items:center;font-size:11px;color:var(--muted);overflow:hidden;background:var(--surface-2)}
+.photo-thumb img{width:100%;height:100%;object-fit:cover}
+/* printable report sheets (A4, paper-white in both themes) */
+.sheet-wrap{overflow:auto;background:var(--surface-2);border-radius:var(--r);padding:12px;max-height:85vh}
+.sheet,.sheet *{box-sizing:border-box}
+.sheet{width:210mm;min-height:297mm;background:#fff;color:#000;font-family:var(--f-doc);font-size:15pt;line-height:1.2;padding:1.5cm 1.5cm 1.5cm 2cm;box-shadow:0 1px 4px rgba(0,0,0,.18);margin:0 auto 16px}
+.sheet .shd{text-align:center;margin-bottom:10pt}
+.sheet .shd b{font-size:18pt}
+.sheet table{border-collapse:collapse;width:100%;font-size:14pt;margin-top:6pt}
+.sheet th,.sheet td{border:1px solid #000;padding:1pt 5pt;white-space:nowrap;color:#000;background:#fff;text-align:left;font-variant-numeric:normal;letter-spacing:0}
+.sheet th{text-align:center;font-weight:700;font-size:14pt}
+.sheet td.c{text-align:center}.sheet td.r{text-align:right}
+.sheet td.bl{width:.75cm}
+.sheet td.wrap{white-space:normal}
+.sheet tbody tr:hover td{background:#fff}
+.sheet tbody tr:last-child td{border-bottom:1px solid #000}
+.sheet h5{font-size:15pt;margin:14pt 0 0;font-weight:700}
+.sheet .foot{margin-top:8pt}
+.sheet .signs{display:flex;justify-content:space-around;margin-top:30pt;text-align:center;break-inside:avoid}
+.sheet.cards{padding:7mm 12mm;display:grid;grid-template-columns:repeat(2,85.6mm);grid-auto-rows:54mm;gap:3mm 6mm;align-content:start;justify-content:center}
+.idcard{border:1px solid #000;border-radius:3mm;padding:2.5mm 3mm;display:grid;grid-template-columns:22mm 1fr;grid-template-rows:auto 1fr auto;gap:1mm 3mm;font-size:12pt;line-height:1.05;overflow:hidden}
+.idcard .ch{grid-column:1/-1;display:flex;gap:2mm;align-items:center;border-bottom:1px solid #000;padding-bottom:1mm;font-weight:700;font-size:12.5pt}
+.idcard .ch img{height:8mm;width:auto}
+.idcard .ph{width:22mm;height:28mm;border:1px solid #000;display:grid;place-items:center;font-size:9pt;color:#555;overflow:hidden}
+.idcard .ph img{width:100%;height:100%;object-fit:cover}
+.idcard .cf{grid-column:1/-1;display:flex;justify-content:space-between;font-size:10.5pt;align-items:end}
 .addr-preview{font-size:14px;color:var(--ink);background:var(--surface-2);border-radius:6px;padding:8px 10px;min-height:38px}
 .paper,.paper *{box-sizing:border-box}
 .paper .nw{white-space:nowrap}
@@ -157,6 +183,16 @@ dialog.small{width:min(440px,calc(100vw - 32px))}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0}
+/* printing through the browser: only #printArea is shown, one A4 sheet per page */
+#printArea{display:none}
+@media print{
+  @page{size:A4;margin:0}
+  body.printing{background:#fff}
+  body.printing::before,body.printing > *:not(#printArea){display:none !important}
+  body.printing #printArea{display:block}
+  #printArea .paper,#printArea .sheet{box-shadow:none;margin:0;break-after:page}
+  #printArea > :last-child{break-after:auto}
+}
 @media (prefers-reduced-motion:no-preference){.toast{animation:up .2s ease-out}@keyframes up{from{opacity:0;transform:translate(-50%,8px)}}}
 </style>
 
@@ -169,6 +205,7 @@ dialog.small{width:min(440px,calc(100vw - 32px))}
   <button role="tab" data-view="students" aria-selected="false">ทะเบียนนักเรียน</button>
   <button role="tab" data-view="issue" aria-selected="false">ออกเอกสาร</button>
   <button role="tab" data-view="log" aria-selected="false">ทะเบียนคุมเอกสาร</button>
+  <button role="tab" data-view="reports" aria-selected="false">รายงาน</button>
   <button role="tab" data-view="setup" aria-selected="false">ตั้งค่า</button>
 </div></nav>
 <main class="wrap">
@@ -177,10 +214,14 @@ dialog.small{width:min(440px,calc(100vw - 32px))}
   <section id="v-students" hidden></section>
   <section id="v-issue" hidden></section>
   <section id="v-log" hidden></section>
+  <section id="v-reports" hidden></section>
   <section id="v-setup" hidden></section>
 </main>
 
 <datalist id="provinceList"></datalist>
+<div id="printArea"></div>
+<dialog id="dlgTool"><div class="dh"><h3 id="toolTitle"></h3><button type="button" class="btn sm" data-close>ปิด</button></div>
+  <div class="db" id="toolBody"></div><div class="df" id="toolFoot"></div></dialog>
 <dialog id="dlgStudent"><form id="fStudent" method="dialog" novalidate>
   <div class="dh"><h3 id="dlgStudentTitle">เพิ่มนักเรียน</h3><button type="button" class="btn sm" data-close>ปิด</button></div>
   <div class="db" id="studentFormBody"></div>
@@ -190,7 +231,7 @@ dialog.small{width:min(440px,calc(100vw - 32px))}
 <dialog id="dlgConfirm" class="small"><div class="dh"><h3 id="cfTitle">ยืนยัน</h3></div><div class="db" id="cfBody"></div>
   <div class="df"><button type="button" class="btn" id="cfNo">ยกเลิก</button><button type="button" class="btn primary" id="cfYes">ยืนยัน</button></div></dialog>
 
-<dialog id="dlgImport"><div class="dh"><h3>นำเข้าข้อมูลนักเรียนจากไฟล์ CSV</h3><button type="button" class="btn sm" data-close>ปิด</button></div>
+<dialog id="dlgImport"><div class="dh"><h3>นำเข้าข้อมูลนักเรียนจากไฟล์ Excel หรือ CSV</h3><button type="button" class="btn sm" data-close>ปิด</button></div>
   <div class="db" id="importBody"></div>
   <div class="df"><button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn primary" id="btnDoImport" disabled>นำเข้า</button></div></dialog>
 
@@ -208,7 +249,7 @@ const DOCTYPES = {
   grad:{name:"หนังสือรับรองการสำเร็จการศึกษา",note:"ใช้ระหว่างรอ ปพ.1 / ปพ.2",need:"grad"},
   moved:{name:"หนังสือส่งตัวนักเรียน (แบบ พฐ.๑๙/๑)",short:"หนังสือส่งตัวนักเรียน",note:"หนังสือภายนอกถึงสถานศึกษาที่รับย้าย พร้อมหลักฐานการศึกษา",need:"moved",letter:true}
 };
-const DEFAULT_SCHOOL = {name:"",address:"",affiliation:"",director:"",directorPos:"",registrar:"",phone:"",docPrefix:"ศธ ",numMode:"own",crutTop:"1.5",showTitle:false,year:"",curriculum:"หลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน พุทธศักราช ๒๕๕๑",thaiDigits:true,logo:""};
+const DEFAULT_SCHOOL = {name:"",address:"",affiliation:"",director:"",directorPos:"",registrar:"",phone:"",docPrefix:"ศธ ",numMode:"own",crutTop:"1.5",showTitle:false,year:"",curriculum:"หลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน พุทธศักราช ๒๕๕๑",curriculumEarly:"หลักสูตรการศึกษาปฐมวัย พุทธศักราช ๒๕๖๐",thaiDigits:true,logo:""};
 
 /* ---------- helpers ---------- */
 const $ = (s,el=document)=>el.querySelector(s);
@@ -220,33 +261,62 @@ const defaultAcadYear = () => { const n=new Date(); return (n.getMonth()<4 ? n.g
 function thaiDate(iso){ if(!iso) return ""; const [y,m,d]=iso.split("-").map(Number); if(!y) return ""; return D(`${d} ${MONTHS[m-1]} ${y+543}`); }
 function thaiDateShort(iso){ if(!iso) return "–"; const [y,m,d]=iso.split("-").map(Number); return `${d}/${m}/${y+543}`; }
 function todayISO(){ const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`; }
-function cidValid(c){ if(!/^\d{13}$/.test(c)) return false; let s=0; for(let i=0;i<12;i++) s+= +c[i]*(13-i); return (11 - s%11)%10 === +c[12]; }
+// เลข G = เลขประจำตัวที่สถานศึกษาออกให้ผู้ไม่มีเลขประจำตัวประชาชน (G + ๑๒ หลัก) ตรวจได้เฉพาะรูปแบบ
+const cidClean = v => { v=String(v||"").replace(/[๐-๙]/g,c=>"๐๑๒๓๔๕๖๗๘๙".indexOf(c)).toUpperCase().replace(/[^0-9G]/g,""); return /^G/.test(v) ? "G"+v.slice(1).replace(/G/g,"") : v.replace(/G/g,""); };
+function cidValid(c){ if(/^G\d{12}$/.test(c)) return true; if(!/^\d{13}$/.test(c)) return false; let s=0; for(let i=0;i<12;i++) s+= +c[i]*(13-i); return (11 - s%11)%10 === +c[12]; }
 function cidFmt(c){ return /^\d{13}$/.test(c||"") ? `${c[0]}-${c.slice(1,5)}-${c.slice(5,10)}-${c.slice(10,12)}-${c[12]}` : (c||""); }
+const DATE_KEYS=["birthDate","enrollDate","leaveDate","moveInDate"];
+const isMale = s => s.gender ? s.gender==="ชาย" : ["เด็กชาย","นาย"].includes(s.prefix);
+// ปีการศึกษา พ.ศ. y นับตั้งแต่ ๑ พ.ค. ถึง ๓๐ เม.ย. ปีถัดไป (ตรงกับ defaultAcadYear)
+const inAcadYear = (iso,y) => !!iso && iso>=`${y-543}-05-01` && iso<=`${y-542}-04-30`;
+function ageAt(birth, ref){ if(!birth) return null; const [by,bm,bd]=birth.split("-").map(Number), [ry,rm,rd]=ref.split("-").map(Number); return ry-by-((rm<bm||(rm===bm&&rd<bd))?1:0); }
 const fullName = s => `${s.prefix||""}${s.firstName||""} ${s.lastName||""}`.trim();
 function gradeFull(g){ if(!g) return ""; const [k,n]=g.split("."); const base={"อ":"อนุบาลปีที่","ป":"ประถมศึกษาปีที่","ม":"มัธยมศึกษาปีที่"}[k]; return base ? `${base} ${D(n)}` : g; }
 function gradeClass(s){ return s.room ? `${gradeFull(s.grade)}/${D(s.room)}` : gradeFull(s.grade); }
-function gradeGrad(g){ return g==="ป.6" ? "ชั้นประถมศึกษาปีที่ ๖" : g==="ม.3" ? "ระดับมัธยมศึกษาตอนต้น (ชั้นมัธยมศึกษาปีที่ ๓)" : g==="ม.6" ? "ระดับมัธยมศึกษาตอนปลาย (ชั้นมัธยมศึกษาปีที่ ๖)" : "ชั้น"+gradeFull(g); }
+function gradeGrad(g){ return g==="อ.3" ? "ระดับปฐมวัย (ชั้นอนุบาลปีที่ ๓)" : g==="ป.6" ? "ชั้นประถมศึกษาปีที่ ๖" : g==="ม.3" ? "ระดับมัธยมศึกษาตอนต้น (ชั้นมัธยมศึกษาปีที่ ๓)" : g==="ม.6" ? "ระดับมัธยมศึกษาตอนปลาย (ชั้นมัธยมศึกษาปีที่ ๖)" : "ชั้น"+gradeFull(g); }
 function statusChip(st){ const cls={active:"s-active",grad:"s-grad",moved:"s-moved",quit:"s-quit",pause:"s-pause"}[st]||""; return `<span class="chip ${cls}">${h(STATUSES[st]||st||"–")}</span>`; }
 function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.setAttribute("role","status"); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2800); }
 function lsGet(k){ try{return localStorage.getItem(k);}catch{return null;} }
 function lsSet(k,v){ try{localStorage.setItem(k,v);}catch{} }
 
 /* ---------- state + store ---------- */
-const state = {school:{...DEFAULT_SCHOOL}, students:[], issued:[], loaded:{school:false,students:false,issued:false}, db:null, dl:null, offline:false, readOnly:false, slow:false};
-const mem = {students:new Map(), issued:new Map()};
+const state = {school:{...DEFAULT_SCHOOL}, students:[], studentsAll:[], trash:[], batches:[], issued:[], loaded:{school:false,students:false,issued:false}, db:null, dl:null, offline:false, readOnly:false, slow:false};
 const newId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
+/* local mode: when the page is opened outside claude.ai (a file on this computer, any web host)
+   data is kept in this browser's IndexedDB so it survives closing the page */
+const local = {
+  db:null, ok:false,
+  open(){ return new Promise(res=>{ try{ const r=indexedDB.open("student-registry",1);
+    r.onupgradeneeded=()=>r.result.createObjectStore("kv");
+    r.onsuccess=()=>{ this.db=r.result; this.ok=true; res(true); }; r.onerror=()=>res(false); r.onblocked=()=>res(false); }catch{ res(false); } }); },
+  get(k){ return new Promise(res=>{ if(!this.ok) return res(undefined); try{ const r=this.db.transaction("kv").objectStore("kv").get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>res(undefined); }catch{ res(undefined); } }); },
+  put(k,v){ return new Promise((res,rej)=>{ if(!this.ok) return res(); try{ const t=this.db.transaction("kv","readwrite"); t.objectStore("kv").put(v,k);
+    t.oncomplete=()=>res(); t.onerror=t.onabort=()=>{ const e=t.error||new Error("write failed"); if(e.name==="QuotaExceededError") e.code="quota_exceeded"; rej(e); }; }catch(e){ rej(e); } }); }
+};
+// students in the trash keep a deletedAt stamp; every screen works on state.students (not deleted)
+function setStudents(all){ state.studentsAll=all; state.students=all.filter(s=>!s.deletedAt); state.trash=all.filter(s=>s.deletedAt); }
+const rawCol = col => col==="students" ? state.studentsAll : (state[col]||[]);
+const setCol = (col,a) => { if(col==="students") setStudents(a); else state[col]=a; };
+const sortIssued = a => a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));
 async function saveDoc(col, id, data){
-  if(state.db){ await state.db.collection(col).doc(id).set(data); }
-  else { mem[col].set(id,{...data,_id:id}); state[col]=[...mem[col].values()]; renderAll(); }
+  if(state.db){ await state.db.collection(col).doc(id).set(data); return; }
+  const next=rawCol(col).filter(x=>x._id!==id).concat({...data,_id:id}); if(col==="issued") sortIssued(next);
+  await local.put(col, next); setCol(col,next); renderAll();
 }
 async function deleteDoc(col,id){
-  if(state.db){ await state.db.collection(col).doc(id).delete(); }
-  else { mem[col].delete(id); state[col]=[...mem[col].values()]; renderAll(); }
+  if(state.db){ await state.db.collection(col).doc(id).delete(); return; }
+  const next=rawCol(col).filter(x=>x._id!==id); await local.put(col, next); setCol(col,next); renderAll();
+}
+// import many rows with one write in local mode (one write per row would be slow)
+async function saveMany(col, items, onProgress){
+  if(state.db){ let n=0; for(const [id,data] of items){ await state.db.collection(col).doc(id).set(data); onProgress(++n); } return; }
+  const map=new Map(rawCol(col).map(x=>[x._id,x])); items.forEach(([id,data])=>map.set(id,{...data,_id:id}));
+  const next=[...map.values()]; await local.put(col,next); setCol(col,next); onProgress(items.length); renderAll();
 }
 async function saveSchool(data){
-  if(state.db) await state.db.doc("config/school").set(data);
-  else { state.school={...DEFAULT_SCHOOL,...data}; renderAll(); }
+  if(state.db){ await state.db.doc("config/school").set(data); return; }
+  await local.put("school", data); state.school={...DEFAULT_SCHOOL,...data}; renderAll();
 }
 function writeErr(e){
   if(e && e.code==="invalid_argument"){ state.readOnly=true; renderBanner(); toast("คุณมีสิทธิ์ดูอย่างเดียว บันทึกข้อมูลไม่ได้"); }
@@ -261,7 +331,11 @@ async function boot(){
   try{ db = await (window.claude?.use?.("db") ?? null); }catch{ db=null; }
   try{ dl = await (window.claude?.use?.("downloads") ?? null); }catch{ dl=null; }
   state.dl = dl;
-  if(!db){ state.offline=true; Object.keys(state.loaded).forEach(k=>state.loaded[k]=true); renderAll(); return; }
+  if(!db){
+    state.offline=true; state.local=await local.open();
+    if(state.local){ state.school={...DEFAULT_SCHOOL,...(await local.get("school")||{})}; setStudents(await local.get("students")||[]); state.batches=await local.get("batches")||[]; state.issued=sortIssued(await local.get("issued")||[]);
+      try{ navigator.storage?.persist?.(); }catch{} }
+    Object.keys(state.loaded).forEach(k=>state.loaded[k]=true); renderAll(); return; }
   state.db = db;
   const timer = setTimeout(()=>{ state.slow=true; renderBanner(); },10000);
   const done = () => { if(Object.values(state.loaded).every(Boolean)){ clearTimeout(timer); state.slow=false; renderBanner(); } };
@@ -271,9 +345,10 @@ async function boot(){
     if(!s.metadata.fromCache) state.loaded.school=true; done(); renderAll();
   }, onErr);
   db.collection("students").onSnapshot(s=>{
-    state.students = s.docs.map(d=>({...d.data(),_id:d.id}));
+    setStudents(s.docs.map(d=>({...d.data(),_id:d.id})));
     if(!s.metadata.fromCache) state.loaded.students=true; done(); renderAll();
   }, onErr);
+  db.collection("batches").onSnapshot(s=>{ state.batches=s.docs.map(d=>({...d.data(),_id:d.id})); renderAll(); }, e=>console.error(e));
   db.collection("issued").orderBy("createdAt","desc").limit(1000).onSnapshot(s=>{
     state.issued = s.docs.map(d=>({...d.data(),_id:d.id}));
     if(!s.metadata.fromCache) state.loaded.issued=true; done(); renderAll();
@@ -282,7 +357,7 @@ async function boot(){
 
 /* ---------- navigation ---------- */
 let view = "overview";
-const VIEWS=["overview","students","issue","log","setup"];
+const VIEWS=["overview","students","issue","log","reports","setup"];
 function go(v){ if(!VIEWS.includes(v)) v="overview"; view=v;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.view===v)));
   VIEWS.forEach(x=>$("#v-"+x).hidden = x!==v);
@@ -294,7 +369,7 @@ addEventListener("hashchange",()=>go(location.hash.slice(1)));
 /* ---------- render ---------- */
 function renderAll(){ renderHeader(); renderBanner();
   if(view==="overview") renderOverview(); else if(view==="students") renderStudents();
-  else if(view==="issue") renderIssue(); else if(view==="log") renderLog(); else if(!$("#fSchool")?.contains(document.activeElement)) renderSettings(); }
+  else if(view==="issue") renderIssue(); else if(view==="log") renderLog(); else if(view==="reports") renderReports(); else if(!$("#fSchool")?.contains(document.activeElement)) renderSettings(); }
 
 function renderHeader(){
   const s=state.school;
@@ -305,7 +380,11 @@ function renderHeader(){
 }
 function renderBanner(){
   const b=$("#banner"); let msg="";
-  if(state.offline && !state.db) msg="หน้านี้ยังเชื่อมต่อฐานข้อมูลไม่ได้ ข้อมูลที่กรอกจะหายเมื่อปิดหน้า ลองเปิดหน้านี้ใน claude.ai ขณะเข้าสู่ระบบ";
+  if(state.offline && !state.db && state.local){ const lb=lsGet("reg.lastBackup"); const days=lb?Math.floor((Date.now()-Date.parse(lb))/864e5):null;
+    msg = state.students.length && (days===null || days>30)
+      ? `ยังไม่ได้สำรองข้อมูล${days===null?"":`มา ${D(days)} วัน`} ข้อมูลเก็บในเบราว์เซอร์ของเครื่องนี้เท่านั้น กด “สำรองข้อมูล” ที่แท็บตั้งค่า แล้วเก็บไฟล์ไว้ที่อื่นด้วย`
+      : "ทำงานบนเครื่องนี้ ข้อมูลเก็บในเบราว์เซอร์ของเครื่องนี้เท่านั้น ควรกด “สำรองข้อมูล” ที่แท็บตั้งค่าเป็นประจำ และอย่าล้างข้อมูลเว็บไซต์ของเบราว์เซอร์"; }
+  else if(state.offline && !state.db) msg="เบราว์เซอร์นี้ไม่อนุญาตให้เก็บข้อมูล (อาจเปิดโหมดไม่ระบุตัวตน) ข้อมูลที่กรอกจะหายเมื่อปิดหน้า";
   else if(state.offline) msg="การเชื่อมต่อฐานข้อมูลขาดหาย ข้อมูลที่แสดงอาจไม่เป็นปัจจุบัน";
   else if(state.slow) msg="ยังโหลดข้อมูลไม่ครบ ข้อมูลที่แสดงอาจไม่เป็นปัจจุบัน";
   else if(state.readOnly) msg="คุณมีสิทธิ์ดูอย่างเดียว ขอสิทธิ์ผู้ร่วมแก้ไขจากเจ้าของหน้านี้หากต้องการบันทึกข้อมูล";
@@ -318,12 +397,12 @@ function renderOverview(){
   const by = k => st.filter(s=>s.status===k).length;
   const active = st.filter(s=>s.status==="active");
   const gradesUsed = GRADES.filter(g=>active.some(s=>s.grade===g));
-  const isM = s => ["เด็กชาย","นาย"].includes(s.prefix) || s.gender==="ชาย";
+  const isM = isMale;
   let rows = gradesUsed.map(g=>{ const a=active.filter(s=>s.grade===g); const m=a.filter(isM).length; const rooms=new Set(a.map(s=>s.room||"")).size;
     return `<tr><td>${h(gradeFull(g))}</td><td class="num">${D(rooms)}</td><td class="num">${D(m)}</td><td class="num">${D(a.length-m)}</td><td class="num"><b>${D(a.length)}</b></td></tr>`; }).join("");
   const mt = active.filter(isM).length;
   if(rows) rows += `<tr><td><b>รวม</b></td><td></td><td class="num"><b>${D(mt)}</b></td><td class="num"><b>${D(active.length-mt)}</b></td><td class="num"><b>${D(active.length)}</b></td></tr>`;
-  const thisYear = state.issued.filter(d=>d.year===beYearNow());
+  const thisYear = state.issued.filter(d=>d.year===beYearNow() && !d.voided);
   const recent = state.issued.slice(0,6).map(d=>`<tr><td class="mono">${h(D(d.number))}</td><td>${h(DOCTYPES[d.type]?.name||d.type)}</td><td>${h(d.studentName)}</td><td>${h(thaiDateShort(d.date))}</td></tr>`).join("");
   el.innerHTML = `
   <h2>ภาพรวมงานทะเบียน</h2><p class="sub">ข้อมูล ณ วันที่ ${h(thaiDate(todayISO()))}${loading()?" · กำลังโหลด…":""}</p>
@@ -353,7 +432,7 @@ function renderStudents(){
   if(!el.dataset.built){
     el.dataset.built="1";
     el.innerHTML = `<div class="row spread" style="margin-bottom:4px"><h2>ทะเบียนนักเรียน</h2>
-      <div class="row"><button class="btn" data-act="import">นำเข้า CSV</button><button class="btn" data-act="export">ส่งออก CSV</button><button class="btn primary" data-act="add">+ เพิ่มนักเรียน</button></div></div>
+      <div class="row"><button class="btn" data-act="import">นำเข้า Excel/CSV</button><button class="btn" data-act="export">ส่งออก CSV</button><button class="btn" data-act="promote">เลื่อนชั้นสิ้นปี</button><button class="btn" data-act="trash" id="stTrash">ถังขยะ</button><button class="btn" data-act="movein">+ รับย้ายเข้า</button><button class="btn primary" data-act="add">+ เพิ่มนักเรียน</button></div></div>
       <p class="sub" id="stCount"></p>
       <div class="toolbar"><input type="search" id="stQ" placeholder="ค้นหาชื่อ นามสกุล เลขประจำตัว หรือเลขบัตรประชาชน" aria-label="ค้นหา">
       <select id="stGrade" aria-label="ชั้น"><option value="">ทุกชั้น</option>${GRADES.map(g=>`<option>${g}</option>`).join("")}</select>
@@ -367,9 +446,11 @@ function renderStudents(){
   drawStudentTable();
 }
 function sortStudents(a){ return a.sort((x,y)=> (GRADES.indexOf(x.grade)-GRADES.indexOf(y.grade)) || String(x.room||"").localeCompare(String(y.room||""),"th",{numeric:true}) || String(x.studentId||"").localeCompare(String(y.studentId||""),"th",{numeric:true})); }
-function matchQ(s,q){ q=q.trim().toLowerCase(); if(!q) return true; return [fullName(s),s.studentId,s.citizenId,s.firstName,s.lastName].some(v=>String(v||"").toLowerCase().includes(q)); }
+function matchQ(s,q){ q=q.trim().toLowerCase(); if(!q) return true; const qd=cidClean(q);
+  return [fullName(s),s.studentId,s.firstName,s.lastName].some(v=>String(v||"").toLowerCase().includes(q)) || (qd.length>=3 && /^G?\d+$/.test(qd) && [s.citizenId,s.studentId].some(v=>String(v||"").toUpperCase().includes(qd))); }
 function drawStudentTable(){
   const list = sortStudents(state.students.filter(s=>matchQ(s,filt.q) && (!filt.grade||s.grade===filt.grade) && (!filt.status||s.status===filt.status)));
+  $("#stTrash").textContent = state.trash.length ? `ถังขยะ (${D(state.trash.length)})` : "ถังขยะ";
   $("#stCount").textContent = `แสดง ${D(list.length)} จาก ${D(state.students.length)} คน${loading()?" · กำลังโหลด…":""}`;
   const t=$("#stTable");
   if(!state.students.length){ t.innerHTML = `<div class="panel empty"><b>ยังไม่มีนักเรียนในทะเบียน</b>กด “เพิ่มนักเรียน” เพื่อกรอกทีละคน หรือ “นำเข้า CSV” สำหรับข้อมูลทั้งชั้นที่ส่งออกจากระบบ DMC/Excel</div>`; return; }
@@ -382,60 +463,74 @@ function drawStudentTable(){
 
 /* student form */
 const SFIELDS = [
-  ["ข้อมูลการศึกษา",[["studentId","เลขประจำตัวนักเรียน","text",true],["grade","ชั้น","grade",true],["room","ห้อง","text"],["status","สถานะ","status",true],["enrollDate","วันที่เข้าเรียน","date"],["leaveDate","วันที่จำหน่าย (จบ/ย้าย/ลาออก)","date"],["moveTo","สถานศึกษาที่ย้ายไป","text",false,"wide"],["moveReason","เหตุผลการย้าย (เช่น ย้ายตามผู้ปกครอง)","text",false,"wide"]]],
-  ["ข้อมูลส่วนตัว",[["prefix","คำนำหน้า","prefix",true],["firstName","ชื่อ","text",true],["lastName","นามสกุล","text",true],["citizenId","เลขประจำตัวประชาชน","cid"],["birthDate","วันเกิด","date"],["nationality","สัญชาติ","text"],["religion","ศาสนา","text"],["bloodType","หมู่เลือด","text"]]],
-  ["ผู้ปกครอง",[["father","ชื่อ–สกุลบิดา","text"],["mother","ชื่อ–สกุลมารดา","text"],["guardian","ผู้ปกครอง (ถ้าไม่ใช่บิดามารดา)","text"],["phone","โทรศัพท์ผู้ปกครอง","text"]]],
+  ["ข้อมูลการศึกษา",[["studentId","เลขประจำตัวนักเรียน","text",true],["grade","ชั้น","grade",true],["room","ห้อง","text"],["status","สถานะ","status",true],["enrollDate","วันที่เข้าเรียน","date"],["moveInFrom","รับย้ายมาจากโรงเรียน (กรณีย้ายเข้า)","text",false,"wide"],["moveInDate","วันที่รับย้ายเข้า","date"],["leaveDate","วันที่จำหน่าย (จบ/ย้าย/ลาออก)","date"],["moveTo","สถานศึกษาที่ย้ายไป","text",false,"wide"],["moveReason","เหตุผลการย้าย (เช่น ย้ายตามผู้ปกครอง)","text",false,"wide"]]],
+  ["ข้อมูลส่วนตัว",[["prefix","คำนำหน้า","prefix",true],["firstName","ชื่อ","text",true],["lastName","นามสกุล","text",true],["citizenId","เลขประจำตัวประชาชน","cid"],["gender","เพศ","gender"],["birthDate","วันเกิด","date"],["nationality","สัญชาติ","text"],["race","เชื้อชาติ","text"],["religion","ศาสนา","text"],["bloodType","หมู่เลือด","text"],["weight","น้ำหนัก (กก.)","text"],["height","ส่วนสูง (ซม.)","text"],["disadvantage","ความด้อยโอกาส","text",false,"wide"],["photo","รูปถ่าย (ใช้ในบัตรนักเรียน)","photo",false,"wide"]]],
+  ["ผู้ปกครอง",[["father","ชื่อ–สกุลบิดา","text"],["fatherJob","อาชีพบิดา","text"],["mother","ชื่อ–สกุลมารดา","text"],["motherJob","อาชีพมารดา","text"],["guardian","ชื่อ–สกุลผู้ปกครอง","text"],["guardianRelation","ความเกี่ยวข้องกับนักเรียน (เช่น มารดา ยาย)","text"],["guardianJob","อาชีพผู้ปกครอง","text"],["phone","โทรศัพท์ผู้ปกครอง","text"]]],
   ["ที่อยู่ตามทะเบียนบ้าน",[["addrNo","บ้านเลขที่","text"],["addrMoo","หมู่ที่","text"],["addrVillage","หมู่บ้าน / อาคาร","text"],["addrSoi","ซอย","text"],["addrRoad","ถนน","text"],["addrTambon","ตำบล / แขวง","text"],["addrAmphoe","อำเภอ / เขต","text"],["addrProvince","จังหวัด","province"],["addrZip","รหัสไปรษณีย์","zip"],["_addrPreview","ที่อยู่ที่จะใช้ในเอกสาร","preview",false,"wide"]]],
   ["หมายเหตุ",[["note","หมายเหตุ","textarea",false,"wide"]]]
 ];
-let editing=null;
-function openStudent(id){
+let editing=null, formDirty=false;
+function nextStudentId(){ const ids=state.studentsAll.map(s=>String(s.studentId||"")).filter(v=>/^\d+$/.test(v)); if(!ids.length) return "";
+  const max=ids.reduce((m,v)=>Number(v)>Number(m)?v:m); return String(Number(max)+1).padStart(max.length,"0"); }
+function openStudent(id, opt={}){
   editing = id ? state.students.find(s=>s._id===id) : null;
-  const base = editing || {status:"active",nationality:"ไทย",religion:"พุทธ",prefix:"เด็กชาย",enrollDate:todayISO()};
+  const base = editing || {status:"active",nationality:"ไทย",religion:"พุทธ",prefix:"เด็กชาย",enrollDate:todayISO(),studentId:nextStudentId(),...(opt.movein?{moveInDate:todayISO()}:{})};
   // records saved before the structured address fields existed get their old one-line address split up
   const s = (base.address && !ADDR_KEYS.some(k=>base[k])) ? {...base, ...parseAddr(base.address)} : base;
-  $("#dlgStudentTitle").textContent = editing ? "แก้ไขข้อมูล "+fullName(editing) : "เพิ่มนักเรียน";
+  $("#dlgStudentTitle").textContent = editing ? "แก้ไขข้อมูล "+fullName(editing) : opt.movein ? "รับนักเรียนย้ายเข้า" : "เพิ่มนักเรียน";
   $("#studentFormBody").innerHTML = SFIELDS.map(([lg,fs])=>`<fieldset><legend>${lg}</legend><div class="fgrid">${fs.map(([k,l,t,req,cls])=>{
     const v=s[k]??""; const id="sf-"+k; let ctl;
-    if(t==="grade") ctl=`<select id="${id}" name="${k}">${GRADES.map(g=>`<option ${g===v?"selected":""}>${g}</option>`).join("")}</select>`;
+    if(t==="grade") ctl=`<select id="${id}" name="${k}"><option value="">– เลือกชั้น –</option>${GRADES.map(g=>`<option ${g===v?"selected":""}>${g}</option>`).join("")}</select>`;
+    else if(t==="gender") ctl=`<select id="${id}" name="${k}">${["","ชาย","หญิง"].map(g=>`<option value="${g}" ${g===v?"selected":""}>${g||"–"}</option>`).join("")}</select>`;
     else if(t==="prefix") ctl=`<select id="${id}" name="${k}">${PREFIXES.map(g=>`<option ${g===v?"selected":""}>${g}</option>`).join("")}</select>`;
     else if(t==="status") ctl=`<select id="${id}" name="${k}">${Object.entries(STATUSES).map(([a,b])=>`<option value="${a}" ${a===v?"selected":""}>${b}</option>`).join("")}</select>`;
     else if(t==="textarea") ctl=`<textarea id="${id}" name="${k}">${h(v)}</textarea>`;
     else if(t==="province") ctl=`<input id="${id}" name="${k}" list="provinceList" value="${h(v)}" placeholder="พิมพ์เพื่อค้นหา">`;
     else if(t==="zip") ctl=`<input id="${id}" name="${k}" inputmode="numeric" maxlength="5" value="${h(v)}">`;
+    else if(t==="photo") return `<div class="f wide">${l}<div class="row"><div class="photo-thumb" id="sf-photo-img">${v?`<img src="${h(v)}" alt="">`:"ไม่มีรูป"}</div>
+      <label class="btn sm" for="sf-photo-file">เลือกรูป<input type="file" id="sf-photo-file" accept="image/*" hidden></label><button type="button" class="btn sm" id="sf-photo-rm">นำรูปออก</button>
+      <input type="hidden" name="photo" id="sf-photo" value="${h(v)}"></div></div>`;
     else if(t==="preview") ctl=`<span id="addrPreview" class="addr-preview"></span>`;
-    else if(t==="cid") ctl=`<input id="${id}" name="${k}" inputmode="numeric" maxlength="17" value="${h(v)}" placeholder="13 หลัก"><span class="hint" id="cidHint">ตรวจหลักสุดท้ายอัตโนมัติ</span>`;
+    else if(t==="cid") ctl=`<input id="${id}" name="${k}" inputmode="numeric" maxlength="17" value="${h(v)}" placeholder="13 หลัก หรือเลข G"><span class="hint" id="cidHint">ตรวจหลักสุดท้ายอัตโนมัติ</span>`;
     else ctl=`<input id="${id}" name="${k}" type="${t==="date"?"date":"text"}" value="${h(v)}">`;
     return `<label class="f ${cls||""}" for="${id}">${l}${req?" *":""}${ctl}</label>`; }).join("")}</div></fieldset>`).join("")
     + (editing ? `<div class="row spread"><span class="hint">บันทึกล่าสุด ${h(editing.updatedAt? new Date(editing.updatedAt).toLocaleString("th-TH"):"–")}</span><button type="button" class="btn danger sm" data-act="del-student">ลบนักเรียนคนนี้</button></div>`:"");
-  const cid=$("#sf-citizenId"); const chk=()=>{ const c=cid.value.replace(/\D/g,""); const hint=$("#cidHint");
+  const cid=$("#sf-citizenId"); const chk=()=>{ const c=cidClean(cid.value); const hint=$("#cidHint");
     if(!c){hint.textContent="ตรวจหลักสุดท้ายอัตโนมัติ";hint.className="hint";return;}
     if(c.length<13){hint.textContent=`กรอกแล้ว ${c.length}/13 หลัก`;hint.className="hint";return;}
-    const ok=cidValid(c); hint.textContent= ok?"เลขถูกต้องตามหลักตรวจสอบ":"เลขไม่ถูกต้อง ตรวจหลักที่พิมพ์อีกครั้ง"; hint.className= ok?"hint":"hint bad"; };
+    const ok=cidValid(c); hint.textContent= ok?(c[0]==="G"?"เลข G (ผู้ไม่มีเลขประจำตัวประชาชน)":"เลขถูกต้องตามหลักตรวจสอบ"):"เลขไม่ถูกต้อง ตรวจหลักที่พิมพ์อีกครั้ง"; hint.className= ok?"hint":"hint bad"; };
   cid.addEventListener("input",chk); chk();
   const ap=()=>{ const o={}; ADDR_KEYS.forEach(k=>o[k]=$("#sf-"+k).value); const c=cleanAddr(o); const t=composeAddr(c);
     const z=$("#sf-addrZip").value.trim(); const pv=c.addrProvince;
     const bad = (z && !/^\d{5}$/.test(thArabic(z))) ? "รหัสไปรษณีย์ต้องเป็นตัวเลข ๕ หลัก" : (pv && !PROVINCES.includes(pv)) ? `ไม่พบจังหวัด “${pv}” ตรวจตัวสะกด` : "";
     $("#addrPreview").innerHTML = t ? `อยู่บ้านเลขที่ ${h(D(t))}${bad?`<br><span class="hint bad">${h(bad)}</span>`:""}` : `<span class="hint">กรอกช่องด้านบน ระบบจะเรียงเป็นที่อยู่แบบเต็มให้</span>`; };
   ADDR_KEYS.forEach(k=>$("#sf-"+k).addEventListener("input",ap)); ap();
+  $("#sf-photo-file").addEventListener("change", async e=>{ const f=e.target.files[0]; if(!f) return;
+    try{ const url=await shrinkPhoto(f); $("#sf-photo").value=url; $("#sf-photo-img").innerHTML=`<img src="${url}" alt="">`; formDirty=true; }catch{ toast("อ่านไฟล์รูปไม่ได้"); } });
+  $("#sf-photo-rm").addEventListener("click",()=>{ $("#sf-photo").value=""; $("#sf-photo-img").textContent="ไม่มีรูป"; formDirty=true; });
+  if(opt.movein) setTimeout(()=>$("#sf-moveInFrom")?.focus(),50);
+  formDirty=false; $("#fStudent").oninput=$("#fStudent").onchange=()=>{ formDirty=true; };
   $("#dlgStudent").showModal();
 }
 $("#fStudent").addEventListener("submit", async e=>{
   e.preventDefault(); if(state.readOnly){ toast("คุณมีสิทธิ์ดูอย่างเดียว"); return; }
   const fd=new FormData(e.target); const d={}; for(const [k,v] of fd) d[k]=String(v).trim();
-  d.citizenId=(d.citizenId||"").replace(/\D/g,"");
+  d.citizenId=cidClean(d.citizenId);
   delete d._addrPreview; Object.assign(d, cleanAddr(d)); d.address = composeAddr(d);
   if(d.addrZip && !/^\d{5}$/.test(d.addrZip)){ toast("รหัสไปรษณีย์ต้องเป็นตัวเลข ๕ หลัก"); return; }
-  const missing=[["studentId","เลขประจำตัวนักเรียน"],["firstName","ชื่อ"],["lastName","นามสกุล"]].filter(([k])=>!d[k]);
+  const missing=[["studentId","เลขประจำตัวนักเรียน"],["grade","ชั้น"],["firstName","ชื่อ"],["lastName","นามสกุล"]].filter(([k])=>!d[k]);
   if(missing.length){ toast("กรอก "+missing.map(m=>m[1]).join(", ")+" ก่อนบันทึก"); return; }
   if(d.citizenId && !cidValid(d.citizenId)){ toast("เลขประจำตัวประชาชนไม่ถูกต้อง แก้ไขหรือเว้นว่างไว้"); return; }
-  const dup = state.students.find(s=>s.studentId===d.studentId && s._id!==editing?._id);
-  if(dup){ toast(`เลขประจำตัว ${d.studentId} ซ้ำกับ ${fullName(dup)}`); return; }
+  const dup = state.studentsAll.find(s=>s.studentId===d.studentId && s._id!==editing?._id);
+  if(dup){ toast(`เลขประจำตัว ${d.studentId} ซ้ำกับ ${fullName(dup)}${dup.deletedAt?" (อยู่ในถังขยะ)":""}`); return; }
+  // someone else saved this student while the form was open: ask before overwriting
+  const cur = editing && state.studentsAll.find(s=>s._id===editing._id);
+  if(cur && (cur.updatedAt||"")!==(editing.updatedAt||"") && !await confirmBox("ข้อมูลถูกแก้จากที่อื่น",`มีผู้บันทึกข้อมูลของ <b>${h(fullName(cur))}</b> หลังจากที่คุณเปิดฟอร์มนี้ ถ้าบันทึก ช่องที่คุณกรอกจะทับข้อมูลนั้น`,"บันทึกทับ")) return;
   const id = editing?._id || newId();
-  const body = {...(editing||{}), ...d, updatedAt:new Date().toISOString()}; delete body._id; delete body.example;
+  const body = {...(cur||editing||{}), ...d, updatedAt:new Date().toISOString()}; delete body._id; delete body.example;
   if(!editing) body.createdAt=body.updatedAt;
   $("#btnSaveStudent").disabled=true;
-  try{ await saveDoc("students",id,body); $("#dlgStudent").close(); toast(editing?"บันทึกการแก้ไขแล้ว":"เพิ่มนักเรียนแล้ว"); }
+  try{ await saveDoc("students",id,body); formDirty=false; $("#dlgStudent").close(); toast(editing?"บันทึกการแก้ไขแล้ว":"เพิ่มนักเรียนแล้ว"); }
   catch(err){ writeErr(err); } finally{ $("#btnSaveStudent").disabled=false; }
 });
 
@@ -446,7 +541,10 @@ function confirmBox(title, body, yes="ยืนยัน"){ return new Promise(r
   $("#cfYes").onclick=()=>fin(true); $("#cfNo").onclick=()=>fin(false); d.oncancel=()=>fin(false); d.showModal(); }); }
 
 /* ---------- document issuing ---------- */
-const defaultAttach = n => `ระเบียนแสดงผลการเรียน (ปพ.๑) จำนวน ${n} ฉบับ\nแบบรายงานประจำตัวนักเรียน (ปพ.๖) จำนวน ${n} ฉบับ\nสมุดบันทึกผลการเรียนรู้ (ปพ.๙) จำนวน ${n} เล่ม`;
+// นักเรียนอนุบาลไม่มี ปพ.๑/ปพ.๖/ปพ.๙ ใช้สมุดรายงานประจำตัวนักเรียนระดับปฐมวัยแทน
+const defaultAttach = (n, list=[]) => list.length && list.every(x=>/^อ\./.test(x.grade||""))
+  ? `สมุดรายงานประจำตัวนักเรียน (ระดับปฐมวัย) จำนวน ${n} เล่ม`
+  : `ระเบียนแสดงผลการเรียน (ปพ.๑) จำนวน ${n} ฉบับ\nแบบรายงานประจำตัวนักเรียน (ปพ.๖) จำนวน ${n} ฉบับ\nสมุดบันทึกผลการเรียนรู้ (ปพ.๙) จำนวน ${n} เล่ม`;
 const iss = {attach:defaultAttach(1), attachEdited:false, sids:[], relation:"", reqName:"", reqAddr:"", reqWho:"", sid:null, type:"student", purpose:"", extra:"", date:todayISO(), q:"", photo:false};
 function renderIssue(){
   const el=$("#v-issue");
@@ -466,7 +564,7 @@ function renderIssue(){
       <label class="f" for="isDate">ลงวันที่<input type="date" id="isDate"></label>
       <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="isPhoto" style="width:auto"> ติดรูปถ่าย ๔ × ๖ ซม. และลายมือชื่อผู้ได้รับการรับรอง (เรื่องสำคัญ ข้อ ๒๔.๗)</label>
       <div id="isWarn"></div>
-      <div class="row"><button class="btn primary" id="isIssue">ออกเลขและบันทึก</button><button class="btn" id="isDraft">ดาวน์โหลดร่าง (PDF)</button></div>
+      <div class="row"><button class="btn primary" id="isIssue">ออกเลขและบันทึก</button><button class="btn" id="isDraft">ดาวน์โหลดร่าง (PDF)</button><button class="btn" id="isPrint">พิมพ์ร่าง</button></div>
       <p class="hint" style="margin:0">เลขที่ในตัวอย่างเป็นเลขถัดไปที่จะได้ เลขจริงจะถูกจองเมื่อกด “ออกเลขและบันทึก”</p>
     </div>
     <div class="panel" style="padding:12px"><div class="paper-wrap" id="paperWrap"><div class="paper-scale" id="paperScale"></div></div></div></div>`;
@@ -481,6 +579,7 @@ function renderIssue(){
     $("#isPhoto").addEventListener("change",e=>{iss.photo=e.target.checked; drawPreview();});
     $("#isIssue").addEventListener("click",issueDoc);
     $("#isDraft").addEventListener("click",()=>{ const list=selStudents(); if(!list.length){toast("เลือกนักเรียนก่อน");return;} exportPdf(paperHTML(list[0],{reqName:iss.reqName,reqAddr:iss.reqAddr,students:list,number:nextNumber()+" (ร่าง)",type:iss.type,purpose:iss.purpose,extra:iss.extra,date:iss.date,photo:iss.photo,attach:iss.attach,relation:iss.relation}), `ร่าง-${DOCTYPES[iss.type].short||DOCTYPES[iss.type].name}-${list.map(x=>x.firstName).join("-")}.pdf`); });
+    $("#isPrint").addEventListener("click",()=>{ const list=selStudents(); if(!list.length){toast("เลือกนักเรียนก่อน");return;} printPages(paperHTML(list[0],{reqName:iss.reqName,reqAddr:iss.reqAddr,students:list,number:nextNumber()+" (ร่าง)",type:iss.type,purpose:iss.purpose,extra:iss.extra,date:iss.date,photo:iss.photo,attach:iss.attach,relation:iss.relation})); });
     new ResizeObserver(fitPaper).observe($("#paperWrap"));
   }
   $("#isDate").value=iss.date; $("#isPurpose").value=iss.purpose; $("#isAttach").value=iss.attach; $("#isRel").value=iss.relation; syncRequester(); $("#isExtra").value=iss.extra; $("#isQ").value=iss.q; $("#isPhoto").checked=iss.photo;
@@ -543,7 +642,7 @@ function pickStudent(id){
   else { iss.sid=id; iss.sids=[id]; }
   const n=Math.max(1,iss.sids.length);
   syncRequester();
-  if(isLetter() && !iss.attachEdited){ iss.attach=defaultAttach(n); const t=$("#isAttach"); if(t) t.value=iss.attach; }
+  if(isLetter() && !iss.attachEdited){ iss.attach=defaultAttach(n, selStudents()); const t=$("#isAttach"); if(t) t.value=iss.attach; }
   drawPick(); drawPreview();
 }
 function drawPick(){
@@ -554,7 +653,10 @@ function drawPick(){
 }
 function fitPaper(){ const w=$("#paperWrap"); if(!w) return; const avail=w.clientWidth-24; const px=210*96/25.4; const s=Math.min(1,avail/px);
   const sc=$("#paperScale"); sc.style.transform=`scale(${s})`; sc.style.width=px+"px"; sc.style.height=(297*96/25.4*s)+"px"; }
-function nextNumber(type=iss.type){ const y=beYearNow(); const max=state.issued.filter(d=>d.year===y).reduce((m,d)=>Math.max(m,d.seq||0),0); return fmtNumber(max+1,y,type); }
+// เลขที่หนังสือนับตามปีปฏิทินของ "วันที่ลงในหนังสือ" ไม่ใช่วันที่กดออกเลข
+const docYear = iso => (Number(String(iso||todayISO()).slice(0,4))||new Date().getFullYear())+543;
+const nextSeq = y => state.issued.filter(d=>d.year===y).reduce((m,d)=>Math.max(m,d.seq||0),0)+1;
+function nextNumber(type=iss.type){ const y=docYear(iss.date); return fmtNumber(nextSeq(y),y,type); }
 function fmtNumber(seq,y,type){ const sc=state.school; if(sc.numMode==="external" || DOCTYPES[type]?.letter){ const pre=String(sc.docPrefix||"").replace(/^\s*ที่\s*/,""); return `ที่ ${pre}${seq}`; } return `ที่ ${seq}/${y}`; }
 function drawPreview(){
   const list=selStudents(), s=list[0], w=$("#isWarn");
@@ -571,6 +673,8 @@ function drawPreview(){
   if(letter && !dests.length) warns.push("ยังไม่ได้กรอก “สถานศึกษาที่ย้ายไป” ในข้อมูลนักเรียน หนังสือต้องเรียนถึงผู้อำนวยการสถานศึกษาปลายทาง");
   if(letter && !String(state.school.docPrefix||"").replace(/^\s*ที่\s*/,"").trim()) warns.push("หนังสือภายนอกต้องมีรหัสตัวพยัญชนะและเลขประจำส่วนราชการ (เช่น ศธ ๐๔xxx.xxx/) กรอกในแท็บ “ตั้งค่า”");
   if(iss.type==="grad" && !s.leaveDate) warns.push("ยังไม่ได้กรอก “วันที่จำหน่าย” ในข้อมูลนักเรียน");
+  if(loading()) warns.push("กำลังโหลดทะเบียนคุมเอกสาร รอสักครู่ก่อนออกเลข");
+  $("#isIssue").disabled = loading();
   w.innerHTML = warns.map(x=>`<div class="warnline">${h(x)}</div>`).join('<div style="height:6px"></div>');
   $("#paperScale").innerHTML = paperHTML(s,{students:list,relation:iss.relation,reqName:iss.reqName,reqAddr:iss.reqAddr,number:nextNumber(),type:iss.type,purpose:iss.purpose,extra:iss.extra,date:iss.date,photo:iss.photo,attach:iss.attach});
   fitPaper();
@@ -634,7 +738,11 @@ function paperHTML(s, o){
   let body;
   if(o.type==="student") body = `<p>${open}${who}${ids}${parents} เป็นนักเรียนชั้น${nw(h(gradeClass(s)))} ของ${nw(h(school))} ${nw("ปีการศึกษา "+year)} ปัจจุบันยังคงศึกษาอยู่ที่สถานศึกษาแห่งนี้</p>`;
   else if(o.type==="conduct") body = `<p>${open}${who}${ids} ${s.status==="active"?`เป็นนักเรียนชั้น${nw(h(gradeClass(s)))} ของ${nw(h(school))} ${nw("ปีการศึกษา "+year)}`:`เคยเป็นนักเรียนของ${nw(h(school))}`} เป็นผู้มีความประพฤติเรียบร้อย อยู่ในระเบียบวินัยของสถานศึกษา</p>`;
-  else if(o.type==="grad") body = `<p>${open}${who}${ids}${parents} ได้สำเร็จการศึกษา${h(gradeGrad(s.grade))} ตาม${h(sc.curriculum||DEFAULT_SCHOOL.curriculum)} จาก${nw(h(school))}${s.leaveDate?` เมื่อวันที่ ${nw(h(thaiDateDoc(s.leaveDate)))}`:""}</p><p>ขณะนี้อยู่ระหว่างดำเนินการจัดทำระเบียนแสดงผลการเรียน (ปพ.๑) และประกาศนียบัตร (ปพ.๒)</p>`;
+  else if(o.type==="grad"){
+    // ปพ.๒ (ประกาศนียบัตร) ออกเฉพาะผู้จบ ม.๓ และ ม.๖ ส่วนปฐมวัยใช้หลักสูตรการศึกษาปฐมวัยและไม่มี ปพ.๑
+    const early=/^อ\./.test(s.grade||""); const cur=early ? (sc.curriculumEarly||DEFAULT_SCHOOL.curriculumEarly) : (sc.curriculum||DEFAULT_SCHOOL.curriculum);
+    const pending = /^ม\.[36]$/.test(s.grade||"") ? "ระเบียนแสดงผลการเรียน (ปพ.๑) และประกาศนียบัตร (ปพ.๒)" : early ? "" : "ระเบียนแสดงผลการเรียน (ปพ.๑)";
+    body = `<p>${open}${who}${ids}${parents} ได้สำเร็จการศึกษา${h(gradeGrad(s.grade))} ตาม${h(cur)} จาก${nw(h(school))}${s.leaveDate?` เมื่อวันที่ ${nw(h(thaiDateDoc(s.leaveDate)))}`:""}</p>${pending?`<p>ขณะนี้อยู่ระหว่างดำเนินการจัดทำ${pending}</p>`:""}`; }
   else body = `<p>${open}${who}${ids}${parents} เคยเป็นนักเรียนชั้น${nw(h(gradeClass(s)))} ของ${nw(h(school))} และได้ย้ายออก${s.leaveDate?`เมื่อวันที่ ${nw(h(thaiDateDoc(s.leaveDate)))}`:""}${s.moveTo?` เพื่อไปศึกษาต่อที่${h(s.moveTo)}`:""}</p>`;
   if(o.extra) body += o.extra.split(/\n+/).filter(Boolean).map(p=>`<p>${h(D(p))}</p>`).join("");
   body += o.purpose ? `<p>ให้ไว้เพื่อเป็นหลักฐานประกอบการ${h(o.purpose)}</p>` : "";
@@ -650,19 +758,24 @@ function paperHTML(s, o){
     <div class="sig-area">${photo}${sign}</div>
   </div>`;
 }
+// ทะเบียนคุมเก็บสำเนาเฉพาะข้อมูลที่พิมพ์ลงในเอกสาร (หลักการใช้ข้อมูลเท่าที่จำเป็น ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล)
+const SNAP_KEYS=["prefix","firstName","lastName","studentId","citizenId","birthDate","father","mother","grade","room","status","leaveDate","moveTo","moveReason"];
+const snapOf = x => Object.fromEntries(SNAP_KEYS.filter(k=>x[k]!==undefined && x[k]!=="").map(k=>[k,x[k]]));
 async function issueDoc(){
   const list=selStudents(), s=list[0]; if(!s){ toast("เลือกนักเรียนก่อน"); return; }
   if(isLetter() && new Set(list.map(x=>(x.moveTo||"").trim()).filter(Boolean)).size>1){ toast("นักเรียนที่เลือกย้ายไปคนละที่ ให้แยกเป็นคนละฉบับ"); return; }
   const names = list.map(fullName).join(", ");
   if(state.readOnly){ toast("คุณมีสิทธิ์ดูอย่างเดียว"); return; }
   if(!state.school.name){ toast("กรอกชื่อสถานศึกษาในแท็บ “ตั้งค่า” ก่อน"); return; }
-  const y=beYearNow(); const seq=state.issued.filter(d=>d.year===y).reduce((m,d)=>Math.max(m,d.seq||0),0)+1;
+  if(loading()){ toast("รอให้ข้อมูลโหลดครบก่อน เพื่อไม่ให้เลขหนังสือซ้ำ"); return; }
+  const y=docYear(iss.date); let seq=nextSeq(y);
   const ok = await confirmBox("ออกเลขหนังสือ", `<dl class="kv"><dt>เลขที่</dt><dd>${h(D(fmtNumber(seq,y,iss.type)))}</dd><dt>ประเภท</dt><dd>${h(DOCTYPES[iss.type].name)}</dd><dt>นักเรียน</dt><dd>${h(names)}</dd><dt>ลงวันที่</dt><dd>${h(thaiDate(iss.date))}</dd></dl>`, "ออกเลขและบันทึก");
   if(!ok) return;
-  const snaps = list.map(x=>{ const c={...x}; delete c._id; return c; });
+  if(nextSeq(y)!==seq){ seq=nextSeq(y); toast(`มีการออกเลขจากที่อื่นระหว่างนี้ เลขที่เปลี่ยนเป็น ${D(fmtNumber(seq,y,iss.type))}`); }
+  const snaps = list.map(snapOf);
   const rec = {attach:iss.attach, relation:iss.relation, reqName:iss.reqName, reqAddr:iss.reqAddr, studentRefs:list.map(x=>x._id), snapshots:snaps, number:fmtNumber(seq,y,iss.type), seq, year:y, type:iss.type, studentRef:s._id, studentId:list.map(x=>x.studentId||"").join(", "), studentName:names, grade:s.grade||"", room:s.room||"",
-    purpose:iss.purpose, extra:iss.extra, date:iss.date, photo:iss.photo, snapshot:{...s, _id:undefined}, school:{...state.school, logo:undefined}, createdAt:new Date().toISOString(), voided:false};
-  delete rec.snapshot._id; delete rec.school.logo;
+    purpose:iss.purpose, extra:iss.extra, date:iss.date, photo:iss.photo, snapshot:snapOf(s), school:{...state.school, logo:undefined}, createdAt:new Date().toISOString(), voided:false};
+  delete rec.school.logo;
   $("#isIssue").disabled=true;
   try{ await saveDoc("issued", newId(), rec); toast(`ออกเลข ${D(rec.number)} แล้ว`); await exportPdf(recordHTML(rec), fileName(rec)); }
   catch(e){ writeErr(e); } finally{ $("#isIssue").disabled=false; }
@@ -705,22 +818,150 @@ async function buildPdf(html){
   return pdf.output("blob");
 }
 window.__regTest={renderPaperCanvas,buildPdf,paperHTML:(...a)=>paperHTML(...a)};
+// save a file: through claude.ai when available, otherwise a normal browser download
+async function saveFile(name, data){
+  if(state.dl) return state.dl.save({filename:name, data});
+  const blob = data instanceof Blob ? data : new Blob([data],{type:/\.csv$/i.test(name)?"text/csv;charset=utf-8":"application/octet-stream"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+function printPages(html){ const a=$("#printArea"); a.innerHTML=html; document.body.classList.add("printing");
+  const done=()=>{ document.body.classList.remove("printing"); a.innerHTML=""; removeEventListener("afterprint",done); };
+  addEventListener("afterprint",done); setTimeout(()=>window.print(),80); }
+// if the PDF can't be built (e.g. Safari on iPad refuses to read back the drawn page) offer the browser's print dialog,
+// where "Save as PDF" gives a PDF with real, searchable text
 async function exportPdf(html, name){
-  if(!state.dl){ toast("หน้านี้ดาวน์โหลดไฟล์ไม่ได้ เปิดหน้าใน claude.ai เพื่อดาวน์โหลด"); return; }
-  if(!window.jspdf){ toast("โหลดตัวสร้าง PDF ไม่สำเร็จ ลองรีเฟรชหน้า"); return; }
   try{
+    if(!window.jspdf) throw Object.assign(new Error("no jspdf"),{code:"no_jspdf"});
     toast("กำลังสร้าง PDF…");
     const blob=await buildPdf(html);
-    await state.dl.save({filename:name, data:blob}); toast("บันทึกไฟล์แล้ว");
-  }catch(e){ if(e?.code==="declined") return; console.error(e); toast(e?.code==="rate_limited"?"มีหน้าต่างบันทึกไฟล์เปิดอยู่ ลองอีกครั้ง":"สร้างหรือบันทึก PDF ไม่สำเร็จ"); }
+    await saveFile(name, blob); toast("บันทึกไฟล์แล้ว");
+  }catch(e){ if(e?.code==="declined") return; console.error(e);
+    if(e?.code==="rate_limited"){ toast("มีหน้าต่างบันทึกไฟล์เปิดอยู่ ลองอีกครั้ง"); return; }
+    if(await confirmBox("สร้าง PDF ไม่สำเร็จ","เบราว์เซอร์นี้สร้างไฟล์ PDF ไม่ได้ ใช้การพิมพ์ของเบราว์เซอร์แทนได้ (เลือกเครื่องพิมพ์ หรือ “บันทึกเป็น PDF”)","พิมพ์")) printPages(html); }
 }
+
+/* ---------- reports ---------- */
+const REPORTS={roster:"รายชื่อนักเรียนรายห้อง / แบบเช็กชื่อ",check:"ตรวจข้อมูลไม่ครบก่อนส่ง DMC",stats:"สรุปจำนวนนักเรียน (ชั้น อายุ เพศ ความด้อยโอกาส)",grads:"รายชื่อผู้สำเร็จการศึกษา (ประกอบ ปพ.๓)",movement:"สมุดคุมการรับย้ายเข้าและจำหน่าย",cards:"บัตรประจำตัวนักเรียน"};
+const rp={kind:"roster", cls:"", blanks:"8", title:"บัญชีรายชื่อนักเรียน", year:"", grade:"", ref:todayISO()};
+const classesOf = list => [...new Set(list.map(s=>`${s.grade||""}|${s.room||""}`))].filter(k=>!k.startsWith("|")).sort((a,b)=>{ const [ga,ra]=a.split("|"),[gb,rb]=b.split("|"); return GRADES.indexOf(ga)-GRADES.indexOf(gb) || ra.localeCompare(rb,"th",{numeric:true}); });
+const clsName = k => { const [g,r]=k.split("|"); return r ? `${gradeFull(g)}/${D(r)}` : gradeFull(g); };
+const byGenderId = (a,b) => (isMale(b)-isMale(a)) || String(a.studentId||"").localeCompare(String(b.studentId||""),"th",{numeric:true});
+const acadYears = () => { const y=Number(state.school.year||defaultAcadYear()); return Array.from({length:6},(_,i)=>y-i); };
+const sheetHead = (title, sub) => `<div class="shd"><b>${h(title)}</b><br>${h(state.school.name||"(ชื่อสถานศึกษา)")}${sub?`<br>${sub}`:""}</div>`;
+const signs = (...who) => `<div class="signs">${who.map(w=>`<div>ลงชื่อ ......................................<br>(......................................)<br>${h(w)}</div>`).join("")}</div>`;
+const gcount = list => { const m=list.filter(isMale).length; return `ชาย ${D(m)} คน หญิง ${D(list.length-m)} คน รวม ${D(list.length)} คน`; };
+function studentIssues(){
+  const act=state.students.filter(s=>s.status==="active"); const cidN={}, sidN={};
+  act.forEach(s=>{ if(s.citizenId) cidN[s.citizenId]=(cidN[s.citizenId]||0)+1; sidN[s.studentId]=(sidN[s.studentId]||0)+1; });
+  return act.map(s=>{ const p=[];
+    if(!s.citizenId) p.push("ไม่มีเลขประจำตัวประชาชน"); else if(!cidValid(s.citizenId)) p.push("เลขประจำตัวประชาชนไม่ถูกต้อง"); else if(cidN[s.citizenId]>1) p.push("เลขประจำตัวประชาชนซ้ำกับคนอื่น");
+    if(sidN[s.studentId]>1) p.push("เลขประจำตัวนักเรียนซ้ำ");
+    if(!GRADES.includes(s.grade)) p.push("ไม่ระบุชั้น"); if(!s.room) p.push("ไม่ระบุห้อง");
+    if(!s.birthDate) p.push("ไม่มีวันเกิด");
+    if(!s.gender && !["เด็กชาย","เด็กหญิง","นาย","นางสาว","นาง"].includes(s.prefix)) p.push("ไม่ระบุเพศ");
+    if(!s.addrTambon || !s.addrAmphoe || !s.addrProvince) p.push("ที่อยู่ไม่ครบ (ตำบล อำเภอ จังหวัด)");
+    if(!s.father && !s.mother && !s.guardian) p.push("ไม่มีชื่อบิดา มารดา หรือผู้ปกครอง");
+    return {s,p}; }).filter(x=>x.p.length);
+}
+// graduates are usually printed after the year-end promotion has already moved the school to the next year
+const acadYearOf = iso => { const [y,m]=iso.split("-").map(Number); return (m<5?y-1:y)+543; };
+function reportDefaultYear(){ const cur=Number(state.school.year||defaultAcadYear());
+  if(rp.kind!=="grads") return cur; const ds=state.students.filter(s=>s.status==="grad"&&s.leaveDate).map(s=>s.leaveDate).sort(); return ds.length ? Math.min(cur, acadYearOf(ds.at(-1))) : cur; }
+function buildReport(){
+  const sc=state.school, year=Number(rp.year||reportDefaultYear()), act=state.students.filter(s=>s.status==="active");
+  const yr=`ปีการศึกษา ${D(year)}`;
+  if(rp.kind==="roster"){
+    const keys=rp.cls?[rp.cls]:classesOf(act); const n=Math.max(0,Math.min(15,parseInt(rp.blanks)||0));
+    const pages=keys.map(k=>{ const [g,r]=k.split("|"); const list=act.filter(s=>s.grade===g&&String(s.room||"")===r).sort(byGenderId);
+      return `<div class="sheet">${sheetHead(rp.title||"บัญชีรายชื่อนักเรียน", `ชั้น${h(clsName(k))} ${yr}`)}
+      <table><thead><tr><th>ที่</th><th>เลขประจำตัว</th><th>ชื่อ – สกุล</th>${"<th></th>".repeat(n)}<th>หมายเหตุ</th></tr></thead><tbody>${list.map((s,i)=>`<tr><td class="c">${D(i+1)}</td><td class="c">${h(D(s.studentId||""))}</td><td>${h(fullName(s))}</td>${'<td class="bl"></td>'.repeat(n)}<td></td></tr>`).join("")}</tbody></table>
+      <div class="foot">${gcount(list)}</div>${signs("ครูประจำชั้น")}</div>`; });
+    const csv=[["ชั้น","ห้อง","ที่","เลขประจำตัว","ชื่อ–สกุล","เพศ"]].concat(keys.flatMap(k=>{ const [g,r]=k.split("|"); return act.filter(s=>s.grade===g&&String(s.room||"")===r).sort(byGenderId).map((s,i)=>[g,r,i+1,s.studentId,fullName(s),isMale(s)?"ชาย":"หญิง"]); }));
+    return {html:pages.join("")||`<div class="empty">ยังไม่มีนักเรียนที่กำลังศึกษา</div>`, csv};
+  }
+  if(rp.kind==="check"){
+    const list=studentIssues(); const csv=[["เลขประจำตัว","ชื่อ–สกุล","ชั้น","ห้อง","ข้อมูลที่ต้องแก้"]].concat(list.map(({s,p})=>[s.studentId,fullName(s),s.grade,s.room,p.join("; ")]));
+    return {screen:true, csv, html: list.length ? `<p class="sub">พบ ${D(list.length)} คนจากนักเรียนที่กำลังศึกษา ${D(act.length)} คน ที่ข้อมูลยังไม่ครบ ระบบ DMC เปิดให้ยืนยันข้อมูลรอบ ๑๐ มิถุนายน และ ๑๐ พฤศจิกายน</p>
+      <div class="tablebox"><table><thead><tr><th>เลขประจำตัว</th><th>ชื่อ–สกุล</th><th>ชั้น</th><th>ข้อมูลที่ต้องแก้</th><th></th></tr></thead><tbody>${list.map(({s,p})=>`<tr><td class="mono">${h(D(s.studentId||"–"))}</td><td>${h(fullName(s))}</td><td>${h(s.grade||"–")}${s.room?"/"+h(s.room):""}</td><td style="white-space:normal">${p.map(h).join("<br>")}</td><td><button class="btn sm" data-act="edit" data-id="${h(s._id)}">แก้ไข</button></td></tr>`).join("")}</tbody></table></div>`
+      : `<div class="panel empty"><b>ข้อมูลครบทุกคน</b>นักเรียนที่กำลังศึกษา ${D(act.length)} คน มีเลขบัตร วันเกิด ที่อยู่ และผู้ปกครองครบ</div>`};
+  }
+  if(rp.kind==="stats"){
+    const grades=GRADES.filter(g=>act.some(s=>s.grade===g)); const csv=[["ตารางที่ 1 จำนวนนักเรียนแยกตามชั้น"],["ชั้น","ห้อง","ชาย","หญิง","รวม"]];
+    const t1=grades.map(g=>{ const a=act.filter(s=>s.grade===g), m=a.filter(isMale).length, rooms=new Set(a.map(s=>s.room||"")).size; csv.push([g,rooms,m,a.length-m,a.length]); return `<tr><td>${h(gradeFull(g))}</td><td class="c">${D(rooms)}</td><td class="c">${D(m)}</td><td class="c">${D(a.length-m)}</td><td class="c"><b>${D(a.length)}</b></td></tr>`; }).join("");
+    const mt=act.filter(isMale).length; csv.push(["รวม","",mt,act.length-mt,act.length],[],["ตารางที่ 2 จำนวนนักเรียนแยกตามอายุ ณ วันที่ "+thaiDateShort(rp.ref)],["อายุ (ปี)","ชาย","หญิง","รวม"]);
+    const ages={}; act.forEach(s=>{ const a=ageAt(s.birthDate,rp.ref); const k=a===null?"ไม่มีวันเกิด":a; (ages[k]=ages[k]||[]).push(s); });
+    const t2=Object.keys(ages).sort((a,b)=>(+a||999)-(+b||999)).map(k=>{ const a=ages[k], m=a.filter(isMale).length; csv.push([k,m,a.length-m,a.length]); return `<tr><td>${h(D(k))}</td><td class="c">${D(m)}</td><td class="c">${D(a.length-m)}</td><td class="c">${D(a.length)}</td></tr>`; }).join("");
+    csv.push([],["ตารางที่ 3 นักเรียนด้อยโอกาส"],["ประเภท","ชาย","หญิง","รวม"]);
+    const dis={}; act.forEach(s=>String(s.disadvantage||"").split(/[,;]/).map(x=>x.trim()).filter(Boolean).forEach(k=>(dis[k]=dis[k]||[]).push(s)));
+    const t3=Object.entries(dis).sort((a,b)=>b[1].length-a[1].length).map(([k,a])=>{ const m=a.filter(isMale).length; csv.push([k,m,a.length-m,a.length]); return `<tr><td>${h(k)}</td><td class="c">${D(m)}</td><td class="c">${D(a.length-m)}</td><td class="c">${D(a.length)}</td></tr>`; }).join("");
+    return {csv, html:`<div class="sheet">${sheetHead("สรุปจำนวนนักเรียน", `${yr} ข้อมูล ณ วันที่ ${h(thaiDate(rp.ref))}`)}
+      <h5>ตารางที่ ๑ จำนวนนักเรียนที่กำลังศึกษา แยกตามชั้นและเพศ</h5><table><thead><tr><th>ชั้น</th><th>ห้อง</th><th>ชาย</th><th>หญิง</th><th>รวม</th></tr></thead><tbody>${t1}<tr><td><b>รวม</b></td><td></td><td class="c"><b>${D(mt)}</b></td><td class="c"><b>${D(act.length-mt)}</b></td><td class="c"><b>${D(act.length)}</b></td></tr></tbody></table>
+      <h5>ตารางที่ ๒ จำนวนนักเรียนแยกตามอายุ (นับถึงวันที่ ${h(thaiDate(rp.ref))})</h5><table><thead><tr><th>อายุ (ปี)</th><th>ชาย</th><th>หญิง</th><th>รวม</th></tr></thead><tbody>${t2}</tbody></table>
+      <h5>ตารางที่ ๓ นักเรียนด้อยโอกาส</h5>${t3?`<table><thead><tr><th>ประเภท</th><th>ชาย</th><th>หญิง</th><th>รวม</th></tr></thead><tbody>${t3}</tbody></table>`:`<div class="foot">ไม่มีข้อมูลนักเรียนด้อยโอกาส</div>`}
+      ${signs("นายทะเบียน","ผู้อำนวยการ")}</div>`};
+  }
+  if(rp.kind==="grads"){
+    const all=state.students.filter(s=>s.status==="grad"); const g=rp.grade || GRADES.filter(x=>all.some(s=>s.grade===x)).pop() || "ป.6";
+    const list=all.filter(s=>s.grade===g && inAcadYear(s.leaveDate,year)).sort(byGenderId); const noDate=all.filter(s=>s.grade===g && !s.leaveDate).length;
+    const csv=[["ที่","เลขประจำตัว","เลขประจำตัวประชาชน","ชื่อ–สกุล","วันเกิด","วันที่สำเร็จการศึกษา"]].concat(list.map((s,i)=>[i+1,s.studentId,s.citizenId,fullName(s),thaiDateShort(s.birthDate),thaiDateShort(s.leaveDate)]));
+    return {csv, note: noDate?`มีผู้สำเร็จการศึกษาชั้น ${g} อีก ${D(noDate)} คนที่ยังไม่มีวันที่จำหน่าย จึงไม่อยู่ในรายชื่อ`:"", html:`<div class="sheet">${sheetHead("รายชื่อผู้สำเร็จการศึกษา", `${h(gradeGrad(g))} ${yr}<br><small>ใช้ประกอบการจัดทำรายงานผลการเรียนของผู้สำเร็จการศึกษา (ปพ.๓)</small>`)}
+      <table><thead><tr><th>ที่</th><th>เลขประจำตัว</th><th>เลขประจำตัวประชาชน</th><th>ชื่อ – สกุล</th><th>วันเกิด</th><th>วันที่จบ</th></tr></thead><tbody>${list.map((s,i)=>`<tr><td class="c">${D(i+1)}</td><td class="c">${h(D(s.studentId||""))}</td><td class="c">${h(D(cidFmt(s.citizenId)))}</td><td>${h(fullName(s))}</td><td class="c">${h(D(thaiDateShort(s.birthDate)))}</td><td class="c">${h(D(thaiDateShort(s.leaveDate)))}</td></tr>`).join("") || `<tr><td colspan="6" class="c">ไม่มีผู้สำเร็จการศึกษาชั้นนี้ในปีการศึกษาที่เลือก</td></tr>`}</tbody></table>
+      <div class="foot">${gcount(list)}</div>${signs("นายทะเบียน","ผู้อำนวยการ")}</div>`};
+  }
+  if(rp.kind==="movement"){
+    const ins=state.students.filter(s=>inAcadYear(s.moveInDate,year)).sort((a,b)=>a.moveInDate.localeCompare(b.moveInDate));
+    const outs=state.students.filter(s=>["moved","quit","grad"].includes(s.status) && inAcadYear(s.leaveDate,year)).sort((a,b)=>a.leaveDate.localeCompare(b.leaveDate));
+    const csv=[["รับย้ายเข้า"],["ที่","วันที่รับ","เลขประจำตัว","ชื่อ–สกุล","ชั้น","มาจาก"]].concat(ins.map((s,i)=>[i+1,thaiDateShort(s.moveInDate),s.studentId,fullName(s),`${s.grade}/${s.room||""}`,s.moveInFrom]),[[],["จำหน่าย"],["ที่","วันที่","เลขประจำตัว","ชื่อ–สกุล","ชั้น","สาเหตุ","ไปที่ / เหตุผล"]],outs.map((s,i)=>[i+1,thaiDateShort(s.leaveDate),s.studentId,fullName(s),`${s.grade}/${s.room||""}`,STATUSES[s.status],[s.moveTo,s.moveReason].filter(Boolean).join(" ")]));
+    return {csv, html:`<div class="sheet">${sheetHead("สมุดคุมการรับย้ายเข้าและจำหน่ายนักเรียน", yr)}
+      <h5>๑. รับย้ายเข้า (${D(ins.length)} คน)</h5><table><thead><tr><th>ที่</th><th>วันที่รับ</th><th>เลขประจำตัว</th><th>ชื่อ – สกุล</th><th>ชั้น</th><th>ย้ายมาจาก</th></tr></thead><tbody>${ins.map((s,i)=>`<tr><td class="c">${D(i+1)}</td><td class="c">${h(D(thaiDateShort(s.moveInDate)))}</td><td class="c">${h(D(s.studentId||""))}</td><td>${h(fullName(s))}</td><td class="c">${h(s.grade||"")}${s.room?"/"+h(D(s.room)):""}</td><td class="wrap">${h(s.moveInFrom||"")}</td></tr>`).join("")||`<tr><td colspan="6" class="c">ไม่มี</td></tr>`}</tbody></table>
+      <h5>๒. จำหน่ายออก (${D(outs.length)} คน)</h5><table><thead><tr><th>ที่</th><th>วันที่</th><th>เลขประจำตัว</th><th>ชื่อ – สกุล</th><th>ชั้น</th><th>สาเหตุ</th><th>ไปที่ / เหตุผล</th></tr></thead><tbody>${outs.map((s,i)=>`<tr><td class="c">${D(i+1)}</td><td class="c">${h(D(thaiDateShort(s.leaveDate)))}</td><td class="c">${h(D(s.studentId||""))}</td><td>${h(fullName(s))}</td><td class="c">${h(s.grade||"")}${s.room?"/"+h(D(s.room)):""}</td><td>${h(STATUSES[s.status])}</td><td class="wrap">${h([s.moveTo,s.moveReason].filter(Boolean).join(" "))}</td></tr>`).join("")||`<tr><td colspan="7" class="c">ไม่มี</td></tr>`}</tbody></table>
+      ${signs("นายทะเบียน")}</div>`};
+  }
+  if(rp.kind==="cards"){
+    const keys=rp.cls?[rp.cls]:classesOf(act); const list=keys.flatMap(k=>{ const [g,r]=k.split("|"); return act.filter(s=>s.grade===g&&String(s.room||"")===r).sort(byGenderId); });
+    const card=s=>`<div class="idcard"><div class="ch">${sc.logo?`<img src="${h(sc.logo)}" alt="">`:""}<span>บัตรประจำตัวนักเรียน<br>${h(sc.name||"(ชื่อสถานศึกษา)")}</span></div>
+      <div class="ph">${s.photo?`<img src="${h(s.photo)}" alt="">`:"ติดรูปถ่าย"}</div>
+      <div>${h(fullName(s))}<br>เลขประจำตัว ${h(D(s.studentId||""))}<br>ชั้น${h(gradeClass(s))}${s.birthDate?`<br>เกิด ${h(D(thaiDateShort(s.birthDate)))}`:""}${s.citizenId?`<br>${h(D(cidFmt(s.citizenId)))}`:""}</div>
+      <div class="cf"><span>${yr}</span><span>......................... ผู้อำนวยการ</span></div></div>`;
+    const pages=[]; for(let i=0;i<list.length;i+=10) pages.push(`<div class="sheet cards">${list.slice(i,i+10).map(card).join("")}</div>`);
+    const noPhoto=list.filter(s=>!s.photo).length;
+    return {html:pages.join("")||`<div class="empty">ยังไม่มีนักเรียนที่กำลังศึกษา</div>`, note: noPhoto?`${D(noPhoto)} คนยังไม่มีรูปถ่าย (เพิ่มได้ในฟอร์มแก้ไขนักเรียน หรือเว้นไว้ให้ติดรูปจริง)`:""};
+  }
+}
+function renderReports(){
+  const el=$("#v-reports");
+  if(!el.dataset.built){ el.dataset.built="1";
+    el.innerHTML=`<h2>รายงาน</h2><p class="sub">เลือกรายงาน ตรวจตัวอย่าง แล้วกด “พิมพ์” (ในหน้าต่างพิมพ์เลือก “บันทึกเป็น PDF” ได้) หรือส่งออก CSV ไปเปิดใน Excel</p>
+      <div class="toolbar"><select id="rpKind" aria-label="รายงาน">${Object.entries(REPORTS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div>
+      <div class="panel" id="rpParams" style="margin-bottom:16px"></div><div id="rpOut"></div>`;
+    $("#rpKind").addEventListener("change",e=>{ rp.kind=e.target.value; rp.year=""; drawReportParams(); drawReport(); }); drawReportParams(); }
+  else if(!$("#rpParams").contains(document.activeElement)) drawReportParams();
+  drawReport();
+}
+function drawReportParams(){
+  const act=state.students.filter(s=>s.status==="active"); const k=rp.kind; const year=rp.year||reportDefaultYear();
+  const clsSel=`<label class="f" for="rpCls">ชั้น/ห้อง<select id="rpCls"><option value="">ทุกห้อง</option>${classesOf(act).map(c=>`<option value="${h(c)}" ${c===rp.cls?"selected":""}>${h(clsName(c))}</option>`).join("")}</select></label>`;
+  const yearSel=`<label class="f" for="rpYear">ปีการศึกษา<select id="rpYear">${acadYears().map(y=>`<option ${String(y)===String(year)?"selected":""}>${y}</option>`).join("")}</select></label>`;
+  const f = k==="roster" ? `${clsSel}<label class="f" for="rpTitle">หัวรายงาน<input id="rpTitle" value="${h(rp.title)}"></label><label class="f" for="rpBlanks">จำนวนช่องว่าง (สำหรับเช็กชื่อ/กรอกคะแนน)<input id="rpBlanks" inputmode="numeric" value="${h(rp.blanks)}"></label>${yearSel}`
+    : k==="stats" ? `<label class="f" for="rpRef">นับอายุถึงวันที่<input type="date" id="rpRef" value="${h(rp.ref)}"></label>${yearSel}`
+    : k==="grads" ? `${yearSel}<label class="f" for="rpGrade">ชั้น<select id="rpGrade"><option value="">อัตโนมัติ (ชั้นสูงสุดที่มีผู้จบ)</option>${GRADES.map(g=>`<option ${g===rp.grade?"selected":""}>${g}</option>`).join("")}</select></label>`
+    : k==="movement" ? yearSel : k==="cards" ? `${clsSel}${yearSel}` : "";
+  const printable=k!=="check";
+  $("#rpParams").innerHTML=`${f?`<div class="fgrid" style="margin-bottom:12px">${f}</div>`:""}<div class="row">${printable?`<button class="btn primary" id="rpPrint">พิมพ์</button>`:""}${k!=="cards"?`<button class="btn" id="rpCsv">ส่งออก CSV</button>`:""}<span class="hint" id="rpNote"></span></div>`;
+  const on=(id,key,ev="input")=>$(id)?.addEventListener(ev,e=>{ rp[key]=e.target.value; drawReport(); });
+  on("#rpCls","cls","change"); on("#rpTitle","title"); on("#rpBlanks","blanks"); on("#rpYear","year","change"); on("#rpRef","ref","change"); on("#rpGrade","grade","change");
+  $("#rpPrint")?.addEventListener("click",()=>{ const r=buildReport(); printPages(r.html); });
+  $("#rpCsv")?.addEventListener("click",()=>{ const r=buildReport(); saveText(`${REPORTS[rp.kind].split(" ")[0]}_${todayISO()}.csv`, r.csv.map(row=>row.map((v,i)=>csvCell(v)).join(",")).join("\r\n")); });
+}
+function drawReport(){ const r=buildReport(); $("#rpNote").textContent=r.note||""; $("#rpOut").innerHTML = r.screen ? r.html : `<div class="sheet-wrap">${r.html}</div>`; }
 
 /* ---------- log ---------- */
 const lf={q:"",type:""};
 function renderLog(){
   const el=$("#v-log");
   if(!el.dataset.built){ el.dataset.built="1";
-    el.innerHTML=`<div class="row spread" style="margin-bottom:4px"><h2>ทะเบียนคุมเอกสาร</h2><button class="btn" data-act="export-log">ส่งออก CSV</button></div><p class="sub" id="lgCount"></p>
+    el.innerHTML=`<div class="row spread" style="margin-bottom:4px"><h2>ทะเบียนคุมเอกสาร</h2><button class="btn" data-act="export-log">ส่งออก CSV</button></div><p class="sub" id="lgCount"></p><div id="lgDup"></div>
     <div class="toolbar"><input type="search" id="lgQ" placeholder="ค้นหาเลขที่ ชื่อนักเรียน หรือวัตถุประสงค์" aria-label="ค้นหาเอกสาร"><select id="lgType" aria-label="ประเภท"><option value="">ทุกประเภท</option>${Object.entries(DOCTYPES).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join("")}</select></div><div id="lgTable"></div>`;
     $("#lgQ").addEventListener("input",e=>{lf.q=e.target.value;drawLog();}); $("#lgType").addEventListener("change",e=>{lf.type=e.target.value;drawLog();}); }
   drawLog();
@@ -728,11 +969,13 @@ function renderLog(){
 function drawLog(){
   const q=lf.q.trim().toLowerCase();
   const list=state.issued.filter(d=>(!lf.type||d.type===lf.type)&&(!q||[d.number,d.studentName,d.purpose,d.studentId].some(v=>String(v||"").toLowerCase().includes(q))));
-  $("#lgCount").textContent=`ทั้งหมด ${D(state.issued.length)} ฉบับ · ปี ${D(beYearNow())} ออกไปแล้ว ${D(state.issued.filter(d=>d.year===beYearNow()).length)} ฉบับ`;
+  $("#lgCount").textContent=`ทั้งหมด ${D(state.issued.length)} ฉบับ · ปี ${D(beYearNow())} ออกไปแล้ว ${D(state.issued.filter(d=>d.year===beYearNow()&&!d.voided).length)} ฉบับ (ไม่นับที่ยกเลิก)`;
+  const cnt={}; state.issued.filter(d=>!d.voided).forEach(d=>cnt[d.number]=(cnt[d.number]||0)+1); const dups=Object.keys(cnt).filter(k=>cnt[k]>1);
+  $("#lgDup").innerHTML = dups.length ? `<div class="warnline" style="margin-bottom:12px">พบเลขที่หนังสือซ้ำ: ${h(dups.map(D).join(", "))} ให้ยกเลิกฉบับที่ออกทีหลังแล้วออกเลขใหม่</div>` : "";
   $("#lgTable").innerHTML = !state.issued.length ? `<div class="panel empty"><b>ยังไม่มีเอกสารในทะเบียนคุม</b>ทุกฉบับที่ออกจากแท็บ “ออกเอกสาร” จะถูกบันทึกที่นี่พร้อมเลขที่ ใช้พิมพ์ซ้ำหรือยกเลิกเลขได้</div>`
    : !list.length ? `<div class="panel empty"><b>ไม่พบเอกสารตามเงื่อนไข</b></div>`
-   : `<div class="tablebox"><table><thead><tr><th>เลขที่</th><th>ลงวันที่</th><th>ประเภท</th><th>นักเรียน</th><th>ชั้น</th><th>ใช้เพื่อ</th><th></th></tr></thead><tbody>${list.map(d=>`<tr${d.voided?' style="opacity:.55"':""}><td class="mono">${h(D(d.number))}${d.voided?' <span class="chip s-quit">ยกเลิก</span>':""}</td><td>${h(thaiDateShort(d.date))}</td><td>${h(DOCTYPES[d.type]?.name||d.type)}</td><td>${h(d.studentName)}</td><td>${h(d.grade)}${d.room?"/"+h(d.room):""}</td><td>${h(d.purpose||"–")}</td>
-     <td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn sm" data-act="reprint" data-id="${h(d._id)}" ${d.voided?"disabled":""}>ดาวน์โหลด PDF</button>${d.voided?"":`<button class="btn sm danger" data-act="void" data-id="${h(d._id)}">ยกเลิกเลข</button>`}</div></td></tr>`).join("")}</tbody></table></div>`;
+   : `<div class="tablebox"><table><thead><tr><th>เลขที่</th><th>ลงวันที่</th><th>ประเภท</th><th>นักเรียน</th><th>ชั้น</th><th>ใช้เพื่อ</th><th></th></tr></thead><tbody>${list.map(d=>`<tr${d.voided?' style="opacity:.55"':""}><td class="mono">${h(D(d.number))}${d.voided?` <span class="chip s-quit">ยกเลิก</span>${d.voidReason?`<br><small class="hint">${h(d.voidReason)}</small>`:""}`:""}</td><td>${h(thaiDateShort(d.date))}</td><td>${h(DOCTYPES[d.type]?.name||d.type)}</td><td>${h(d.studentName)}</td><td>${h(d.grade)}${d.room?"/"+h(d.room):""}</td><td>${h(d.purpose||"–")}</td>
+     <td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn sm" data-act="reprint" data-id="${h(d._id)}" ${d.voided?"disabled":""}>ดาวน์โหลด PDF</button><button class="btn sm" data-act="print-rec" data-id="${h(d._id)}" ${d.voided?"disabled":""}>พิมพ์</button>${d.voided?"":`<button class="btn sm danger" data-act="void" data-id="${h(d._id)}">ยกเลิกเลข</button>`}</div></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 /* ---------- settings ---------- */
@@ -752,7 +995,8 @@ function renderSettings(){
       <option value="external" ${s.numMode==="external"?"selected":""}>ตามแบบหนังสือภายนอก (รหัสส่วนราชการ/ลำดับ)</option></select></label>
     ${F("docPrefix","รหัสตัวพยัญชนะและเลขประจำส่วนราชการ","ศธ 04xxx.xxx/")}
     <div class="wide hint">ตัวอย่างเลขที่: <b>${h(D(fmtNumber(12,beYearNow())))}</b> — เริ่มนับ ๑ ใหม่ทุกปีปฏิทิน รหัสส่วนราชการใช้เฉพาะแบบหนังสือภายนอก</div>
-    ${F("curriculum","ชื่อหลักสูตร (ใช้ในหนังสือรับรองการสำเร็จการศึกษา)","","wide")}
+    ${F("curriculum","ชื่อหลักสูตรการศึกษาขั้นพื้นฐาน (ใช้ในหนังสือรับรองการสำเร็จการศึกษา)","","wide")}
+    ${F("curriculumEarly","ชื่อหลักสูตรระดับปฐมวัย (ใช้กับผู้จบชั้นอนุบาล)","","wide")}
     <label style="display:flex;gap:8px;align-items:center;font-size:14px" class="wide"><input type="checkbox" id="cf-thaiDigits" name="thaiDigits" style="width:auto" ${s.thaiDigits?"checked":""}> ใช้เลขไทยในเอกสารและหน้าจอ</label>
   </div></fieldset>
   <fieldset><legend>ตราครุฑและรูปแบบหน้ากระดาษ</legend><p class="hint" style="margin:0 0 10px">หนังสือรับรองใช้กระดาษตราครุฑ (ข้อ ๒๔) อัปโหลดภาพตราครุฑจากแม่แบบหนังสือราชการของหน่วยงาน ระบบจะแสดงสูง ๓ ซม. กึ่งกลางหน้า</p>
@@ -765,6 +1009,8 @@ function renderSettings(){
     ${s.logo?`<button type="button" class="btn danger sm" id="cf-logo-rm">นำตราออก</button>`:""}
     <span class="hint">PNG พื้นใส ความสูงอย่างน้อย ๓๕๐ พิกเซล</span></div></fieldset>
   <div class="row"><button class="btn primary" type="submit" id="btnSaveSchool">บันทึกการตั้งค่า</button></div></form>
+  <div class="panel" style="margin-top:20px"><h3>สำรองและกู้คืนข้อมูล</h3><p class="sub" style="margin:0 0 12px">ไฟล์สำรองรวมข้อมูลนักเรียน ทะเบียนคุมเอกสาร และการตั้งค่าทั้งหมด ใช้ย้ายข้อมูลไปเครื่องอื่นหรือกู้คืนเมื่อข้อมูลหาย เก็บไฟล์ไว้ในที่ปลอดภัยเพราะมีข้อมูลส่วนบุคคล</p>
+    <div class="row"><button type="button" class="btn primary" data-act="backup">สำรองข้อมูล</button><label class="btn" for="cf-restore">กู้คืนจากไฟล์สำรอง<input type="file" id="cf-restore" accept=".json,application/json" hidden></label></div></div>
   <div class="panel" style="margin-top:20px"><h3>สิทธิ์การเข้าถึงข้อมูล</h3><p class="sub" style="margin:0">ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคลตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล หน้านี้ตั้งให้เฉพาะผู้ที่ได้รับสิทธิ์ “ผู้ร่วมแก้ไข” (Contributor) ขึ้นไปเท่านั้นที่เห็นและบันทึกข้อมูลได้ ผู้ที่ได้รับสิทธิ์ดูอย่างเดียวจะไม่เห็นรายชื่อนักเรียน แชร์หน้านี้ให้เฉพาะเจ้าหน้าที่งานทะเบียน</p></div>`;
   $("#fSchool").addEventListener("submit", async e=>{ e.preventDefault(); if(state.readOnly){toast("คุณมีสิทธิ์ดูอย่างเดียว");return;}
     const fd=new FormData(e.target); const d={...state.school}; for(const [k,v] of fd) if(k!=="thaiDigits") d[k]=String(v).trim();
@@ -773,15 +1019,76 @@ function renderSettings(){
     $("#btnSaveSchool").disabled=true; try{ await saveSchool(d); toast("บันทึกการตั้งค่าแล้ว"); }catch(err){ writeErr(err); } finally{ const b=$("#btnSaveSchool"); if(b) b.disabled=false; } });
   $("#cf-logo").addEventListener("change", async e=>{ const f=e.target.files[0]; if(!f) return;
     try{ const url=await shrinkImage(f,450); await saveSchool({...state.school,logo:url}); toast("บันทึกตราแล้ว"); }catch(err){ writeErr(err); } });
+  $("#cf-restore").addEventListener("change", async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return; let d;
+    try{ d=JSON.parse(await f.text()); if(d.app!=="student-registry" || !Array.isArray(d.students)) throw 0; }catch{ toast("ไฟล์นี้ไม่ใช่ไฟล์สำรองของโปรแกรม"); return; }
+    const ok=await confirmBox("กู้คืนข้อมูล",`นำเข้านักเรียน <b>${D(d.students.length)}</b> คน และเอกสาร <b>${D((d.issued||[]).length)}</b> ฉบับ จากไฟล์สำรองวันที่ ${h(thaiDate((d.savedAt||"").slice(0,10)))}<p class="hint">รายการที่มีอยู่แล้วจะถูกแทนด้วยข้อมูลในไฟล์ รายการอื่นยังอยู่</p>`,"กู้คืน");
+    if(!ok) return;
+    try{ const strip=x=>{ const {_id,...rest}=x; return [_id||newId(),rest]; };
+      await saveMany("students", d.students.map(strip), ()=>{}); await saveMany("issued", (d.issued||[]).map(strip), ()=>{});
+      if(d.school) await saveSchool({...DEFAULT_SCHOOL,...d.school}); toast("กู้คืนข้อมูลแล้ว"); }catch(err){ writeErr(err); } });
   $("#cf-logo-rm")?.addEventListener("click", async()=>{ try{ await saveSchool({...state.school,logo:""}); }catch(err){ writeErr(err); } });
 }
+// student photo: small JPEG (about 15 KB) so 1,000 students still fit in the database
+function shrinkPhoto(file){ return new Promise((res,rej)=>{ const img=new Image(); const u=URL.createObjectURL(file); img.onerror=()=>{URL.revokeObjectURL(u);rej();};
+  img.onload=()=>{ const k=Math.min(1,320/Math.max(img.width,img.height)); const c=document.createElement("canvas"); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k);
+    const g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height); g.drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(u); res(c.toDataURL("image/jpeg",0.82)); }; img.src=u; }); }
 function shrinkImage(file,max){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onerror=rej; r.onload=()=>{ const img=new Image(); img.onerror=rej; img.onload=()=>{
   const k=Math.min(1,max/Math.max(img.width,img.height)); const c=document.createElement("canvas"); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k);
   c.getContext("2d").drawImage(img,0,0,c.width,c.height); res(c.toDataURL("image/png")); }; img.src=r.result; }; r.readAsDataURL(file); }); }
 
+/* ---------- tool dialog (trash, promotion) ---------- */
+function toolDialog(title, body, foot){ $("#toolTitle").textContent=title; $("#toolBody").innerHTML=body; $("#toolFoot").innerHTML=foot||`<button type="button" class="btn" data-close>ปิด</button>`; const d=$("#dlgTool"); if(!d.open) d.showModal(); }
+function openTrash(){
+  const list=[...state.trash].sort((a,b)=>String(b.deletedAt).localeCompare(String(a.deletedAt)));
+  toolDialog("ถังขยะ", list.length ? `<p class="sub" style="margin:0 0 12px">นักเรียนที่ลบไว้ ${D(list.length)} คน กู้คืนได้ทุกเมื่อ ถ้าไม่ต้องการเก็บแล้วให้ “ลบถาวร” (ข้อมูลส่วนบุคคลควรลบเมื่อหมดความจำเป็น)</p>
+    <div class="tablebox"><table><thead><tr><th>เลขประจำตัว</th><th>ชื่อ–สกุล</th><th>ชั้น</th><th>ลบเมื่อ</th><th></th></tr></thead><tbody>${list.map(s=>`<tr><td class="mono">${h(D(s.studentId||"–"))}</td><td>${h(fullName(s))}</td><td>${h(s.grade||"–")}${s.room?"/"+h(s.room):""}</td><td>${h(thaiDateShort(String(s.deletedAt).slice(0,10)))}</td>
+    <td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn sm" data-act="restore" data-id="${h(s._id)}">กู้คืน</button><button class="btn sm danger" data-act="purge" data-id="${h(s._id)}">ลบถาวร</button></div></td></tr>`).join("")}</tbody></table></div>`
+    : `<div class="empty"><b>ถังขยะว่าง</b>นักเรียนที่ลบจะมาอยู่ที่นี่ก่อน กู้คืนได้</div>`);
+}
+// เลื่อนชั้นสิ้นปีการศึกษา: ทุกคนที่กำลังศึกษาขึ้นชั้นถัดไป ชั้นสูงสุดที่เปิดสอนเปลี่ยนเป็นสำเร็จการศึกษา ย้อนกลับได้
+function lastPromotion(){ return [...state.batches].filter(b=>b.kind==="promote" && !b.undone).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0]; }
+function openPromote(){
+  const year=Number(state.school.year||defaultAcadYear()); const active=state.students.filter(s=>s.status==="active");
+  const p={top:state.school.topGrade || GRADES.filter(g=>active.some(s=>s.grade===g)).pop() || "ป.6", date:`${year-542}-03-31`, keep:""};
+  const last=lastPromotion();
+  toolDialog("เลื่อนชั้นสิ้นปีการศึกษา", `<p class="sub" style="margin:0 0 12px">นักเรียนที่ “กำลังศึกษา” ทุกคนจะขึ้นชั้นถัดไป (ห้องเดิม) ชั้นสูงสุดที่เปิดสอนจะเปลี่ยนเป็น “สำเร็จการศึกษา” และปีการศึกษาในตั้งค่าจะเปลี่ยนจาก ${D(year)} เป็น ${D(year+1)} ควรกด “สำรองข้อมูล” ก่อน</p>
+    <div class="fgrid"><label class="f" for="pmTop">ชั้นสูงสุดที่เปิดสอน<select id="pmTop">${GRADES.map(g=>`<option ${g===p.top?"selected":""}>${g}</option>`).join("")}</select></label>
+    <label class="f" for="pmDate">วันที่สำเร็จการศึกษา<input type="date" id="pmDate" value="${p.date}"></label>
+    <label class="f wide" for="pmKeep">เลขประจำตัวนักเรียนที่ไม่เลื่อนชั้น (ซ้ำชั้น) คั่นด้วยเว้นวรรคหรือจุลภาค<input id="pmKeep" placeholder="เช่น 2481, 2490"></label></div>
+    <div id="pmPrev" style="margin-top:14px"></div>
+    ${last?`<div class="warnline" style="margin-top:14px">เลื่อนชั้นครั้งล่าสุดเมื่อ ${h(thaiDate(String(last.createdAt).slice(0,10)))} (ปีการศึกษา ${D(last.fromYear)} → ${D(last.toYear)}, ${D(last.prev.length)} คน) <button type="button" class="btn sm" id="pmUndo" style="margin-left:6px">ย้อนกลับครั้งนั้น</button></div>`:""}`,
+    `<button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn primary" id="pmGo">เลื่อนชั้น</button>`);
+  const plan=()=>{ const keep=new Set(p.keep.split(/[\s,]+/).map(x=>thArabic(x)).filter(Boolean)); const ti=GRADES.indexOf(p.top);
+    return active.map(s=>{ if(keep.has(String(s.studentId))) return {s,to:null}; const gi=GRADES.indexOf(s.grade); if(gi<0) return {s,to:null};
+      return {s,to: gi>=ti ? "grad" : GRADES[gi+1]}; }); };
+  const draw=()=>{ const pl=plan(); const by=GRADES.map(g=>{ const a=pl.filter(x=>x.s.grade===g); return a.length?[g,a.length,a.filter(x=>!x.to).length,a.find(x=>x.to)?.to]:null; }).filter(Boolean);
+    const bad=active.filter(s=>GRADES.indexOf(s.grade)<0).length;
+    $("#pmPrev").innerHTML=`<div class="tablebox"><table><thead><tr><th>ชั้นปัจจุบัน</th><th class="num">จำนวน</th><th class="num">ไม่เลื่อน</th><th>ปีการศึกษา ${D(year+1)}</th></tr></thead><tbody>${by.map(([g,n,k,to])=>`<tr><td>${h(g)}</td><td class="num">${D(n)}</td><td class="num">${D(k)}</td><td>${to==="grad"?"<b>สำเร็จการศึกษา</b>":h(to||"–")}</td></tr>`).join("")}</tbody></table></div>${bad?`<p class="hint bad">มีนักเรียน ${D(bad)} คนที่ยังไม่ระบุชั้น จะไม่ถูกเลื่อน</p>`:""}`; };
+  $("#pmTop").addEventListener("change",e=>{p.top=e.target.value;draw();}); $("#pmDate").addEventListener("change",e=>{p.date=e.target.value;});
+  $("#pmKeep").addEventListener("input",e=>{p.keep=e.target.value;draw();}); draw();
+  $("#pmGo").addEventListener("click", async()=>{ if(state.readOnly){ toast("คุณมีสิทธิ์ดูอย่างเดียว"); return; }
+    const pl=plan().filter(x=>x.to); if(!pl.length){ toast("ไม่มีนักเรียนที่จะเลื่อนชั้น"); return; }
+    if(!await confirmBox("ยืนยันการเลื่อนชั้น",`เลื่อนชั้นนักเรียน ${D(pl.length)} คน และเปลี่ยนเป็นปีการศึกษา ${D(year+1)}? ย้อนกลับได้จากหน้านี้`,"เลื่อนชั้น")) return;
+    const now=new Date().toISOString(); const b=$("#pmGo"); b.disabled=true;
+    try{ await saveDoc("batches", newId(), {kind:"promote", createdAt:now, fromYear:year, toYear:year+1, prev:pl.map(({s})=>({id:s._id,grade:s.grade,status:s.status,leaveDate:s.leaveDate||""})), undone:false});
+      await saveMany("students", pl.map(({s,to})=>{ const body={...s,updatedAt:now}; delete body._id; if(to==="grad"){ body.status="grad"; body.leaveDate=p.date; } else body.grade=to; return [s._id,body]; }), ()=>{});
+      await saveSchool({...state.school, year:String(year+1), topGrade:p.top}); $("#dlgTool").close(); toast(`เลื่อนชั้นแล้ว ${D(pl.length)} คน`);
+    }catch(err){ writeErr(err); } finally{ b.disabled=false; } });
+  $("#pmUndo")?.addEventListener("click", async()=>{ if(!await confirmBox("ย้อนกลับการเลื่อนชั้น",`คืนชั้น สถานะ และวันที่จำหน่ายของนักเรียน ${D(last.prev.length)} คน กลับเป็นก่อนเลื่อนชั้น และเปลี่ยนปีการศึกษากลับเป็น ${D(last.fromYear)}`,"ย้อนกลับ")) return;
+    const now=new Date().toISOString();
+    try{ const items=last.prev.map(pv=>{ const cur=state.studentsAll.find(x=>x._id===pv.id); if(!cur) return null; const body={...cur,grade:pv.grade,status:pv.status,leaveDate:pv.leaveDate,updatedAt:now}; delete body._id; return [pv.id,body]; }).filter(Boolean);
+      await saveMany("students", items, ()=>{}); const bb={...last,undone:true,undoneAt:now}; delete bb._id; await saveDoc("batches", last._id, bb);
+      await saveSchool({...state.school, year:String(last.fromYear)}); $("#dlgTool").close(); toast("ย้อนกลับแล้ว");
+    }catch(err){ writeErr(err); } });
+}
+
 /* ---------- CSV ---------- */
-const CSV_COLS = [["studentId","เลขประจำตัวนักเรียน"],["citizenId","เลขประจำตัวประชาชน"],["prefix","คำนำหน้า"],["firstName","ชื่อ"],["lastName","นามสกุล"],["grade","ชั้น"],["room","ห้อง"],["birthDate","วันเกิด"],["status","สถานะ"],["enrollDate","วันที่เข้าเรียน"],["leaveDate","วันที่จำหน่าย"],["moveTo","สถานศึกษาที่ย้ายไป"],["nationality","สัญชาติ"],["religion","ศาสนา"],["bloodType","หมู่เลือด"],["father","บิดา"],["mother","มารดา"],["guardian","ผู้ปกครอง"],["phone","โทรศัพท์"],["address","ที่อยู่"],["addrNo","บ้านเลขที่"],["addrMoo","หมู่ที่"],["addrVillage","หมู่บ้าน"],["addrSoi","ซอย"],["addrRoad","ถนน"],["addrTambon","ตำบล"],["addrAmphoe","อำเภอ"],["addrProvince","จังหวัด"],["addrZip","รหัสไปรษณีย์"],["note","หมายเหตุ"]];
-const csvCell = v => { v=String(v??""); return /[",\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
+const CSV_COLS = [["studentId","เลขประจำตัวนักเรียน"],["citizenId","เลขประจำตัวประชาชน"],["prefix","คำนำหน้า"],["firstName","ชื่อ"],["lastName","นามสกุล"],["grade","ชั้น"],["room","ห้อง"],["birthDate","วันเกิด"],["status","สถานะ"],["enrollDate","วันที่เข้าเรียน"],["moveInFrom","รับย้ายมาจาก"],["moveInDate","วันที่รับย้ายเข้า"],["leaveDate","วันที่จำหน่าย"],["moveTo","สถานศึกษาที่ย้ายไป"],["nationality","สัญชาติ"],["religion","ศาสนา"],["bloodType","หมู่เลือด"],["gender","เพศ"],["race","เชื้อชาติ"],["weight","น้ำหนัก"],["height","ส่วนสูง"],["father","บิดา"],["fatherJob","อาชีพบิดา"],["mother","มารดา"],["motherJob","อาชีพมารดา"],["guardian","ผู้ปกครอง"],["guardianRelation","ความเกี่ยวข้องของผู้ปกครอง"],["guardianJob","อาชีพผู้ปกครอง"],["phone","โทรศัพท์"],["disadvantage","ความด้อยโอกาส"],["address","ที่อยู่"],["addrNo","บ้านเลขที่"],["addrMoo","หมู่ที่"],["addrVillage","หมู่บ้าน"],["addrSoi","ซอย"],["addrRoad","ถนน"],["addrTambon","ตำบล"],["addrAmphoe","อำเภอ"],["addrProvince","จังหวัด"],["addrZip","รหัสไปรษณีย์"],["note","หมายเหตุ"]];
+// กันสูตรที่ฝังมาในข้อมูล (CSV injection): ช่องที่ขึ้นต้นด้วย = + @ หรือ - ตามด้วยตัวอักษร จะมี ' นำหน้า
+const csvCell = v => { v=String(v??""); if(/^[=+@\t\r]/.test(v) || /^-[^\d\s]/.test(v)) v="'"+v; return /[",\n\r]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
+// Excel แปลงเลขยาว ๆ เป็น 1.1E+12 และตัดเลข 0 นำหน้า จึงเขียนเป็นข้อความ ="..."
+const CSV_TEXT_KEYS=["studentId","citizenId","phone"];
+const csvText = v => { v=String(v??""); return /^\d{10,}$|^0\d+$/.test(v) ? `="${v}"` : csvCell(v); };
 function parseCSV(text){ const rows=[]; let row=[],cur="",q=false; text=text.replace(/^﻿/,"");
   for(let i=0;i<text.length;i++){ const c=text[i];
     if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
@@ -791,23 +1098,61 @@ function parseCSV(text){ const rows=[]; let row=[],cur="",q=false; text=text.rep
 function normDate(v){ v=(v||"").trim(); if(!v) return ""; if(/^\d{4}-\d{2}-\d{2}$/.test(v)){ const y=+v.slice(0,4); return y>2400 ? `${y-543}${v.slice(4)}` : v; }
   const m=v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if(m){ let y=+m[3]; if(y>2400) y-=543; return `${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`; } return ""; }
 function normStatus(v){ v=(v||"").trim(); if(!v) return "active"; if(STATUSES[v]) return v; const f=Object.entries(STATUSES).find(([,t])=>t===v || v.includes(t.slice(0,4))); return f?f[0]:"active"; }
-function normGrade(v){ v=(v||"").replace(/\s/g,"").replace("ประถมศึกษาปีที่","ป.").replace("มัธยมศึกษาปีที่","ม.").replace("อนุบาล","อ.").replace(/^([อปม])(\d)$/,"$1.$2"); return GRADES.includes(v)?v:""; }
+function normGrade(v){ v=String(v||"").replace(/[๐-๙]/g,c=>"๐๑๒๓๔๕๖๗๘๙".indexOf(c)).replace(/\s/g,"").replace(/^ชั้น/,"")
+    .replace(/ประถมศึกษาปีที่|ประถม/,"ป.").replace(/มัธยมศึกษาปีที่|มัธยม/,"ม.").replace(/อนุบาลปีที่|อนุบาล/,"อ.").replace(/^([อปม])\.*(\d)$/,"$1.$2"); return GRADES.includes(v)?v:""; }
+// column names used by the DMC export (ระบบจัดเก็บข้อมูลนักเรียนรายบุคคล สพฐ.) and similar files
+const HEAD_ALIASES = {"คำนำหน้าชื่อ":"prefix","กลุ่มเลือด":"bloodType","หมู่":"addrMoo","ถนน/ซอย":"addrRoad","บ้านเลขที่":"addrNo",
+  "อาชีพของผู้ปกครอง":"guardianJob","ความเกี่ยวข้องของผู้ปกครองกับนักเรียน":"guardianRelation","อาชีพของบิดา":"fatherJob","อาชีพของมารดา":"motherJob",
+  "คำนำหน้าชื่อผู้ปกครอง":"_gP","ชื่อผู้ปกครอง":"_gF","นามสกุลผู้ปกครอง":"_gL","คำนำหน้าชื่อบิดา":"_fP","ชื่อบิดา":"_fF","นามสกุลบิดา":"_fL",
+  "คำนำหน้าชื่อมารดา":"_mP","ชื่อมารดา":"_mF","นามสกุลมารดา":"_mL","เลขบัตรประชาชน":"citizenId","เลขประจำตัวประชาชน 13 หลัก":"citizenId","น้ำหนัก(กก.)":"weight","ส่วนสูง(ซม.)":"height"};
+const BLANK = v => /^(-|–|ไม่มี|ไม่ปรากฏ|ไม่ปรากฎ)$/.test(v);
+const joinName = (p,f,l) => (!f || BLANK(f)) ? "" : (p&&!BLANK(p)?p:"")+f+(l&&!BLANK(l)?" "+l:"");
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>{ s.remove(); rej(new Error("load")); }; document.head.appendChild(s); }); }
+// .xlsx/.xls straight from DMC: the reader library is fetched only when an Excel file is chosen
+async function readXlsx(f){
+  if(!window.XLSX){ try{ await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"); }catch{ throw new Error("อ่านไฟล์ Excel ไม่ได้ ต้องต่ออินเทอร์เน็ตเพื่อโหลดตัวอ่านไฟล์ หรือบันทึกไฟล์จาก Excel เป็น CSV แล้วนำเข้าแทน"); } }
+  const wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:true}); const ws=wb.Sheets[wb.SheetNames[0]];
+  const cell=x=> x instanceof Date ? `${x.getDate()}/${x.getMonth()+1}/${x.getFullYear()}` : String(x??"");
+  return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:""}).map(r=>r.map(cell)).filter(r=>r.some(x=>x.trim()));
+}
+async function readTextFile(f){ const buf=await f.arrayBuffer();
+  try{ return new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch{ try{ return new TextDecoder("windows-874").decode(buf); }catch{ return new TextDecoder().decode(buf); } } }
+function mapImportRows(rows){
+  // skip report lines above the header (DMC puts the export time on the first line)
+  const hi=rows.findIndex(r=>r.some(x=>x.trim()==="ชื่อ")); if(hi<0) return null;
+  const head=rows[hi].map(x=>x.trim());
+  const keys=head.map(x=>{ const c=CSV_COLS.find(([k,l])=>x===l||x===k); return c?c[0]:(HEAD_ALIASES[x]||null); });
+  const hasStatus=keys.includes("status"); const problems=[];
+  const out=rows.slice(hi+1).map((r,i)=>{ const o={};
+    keys.forEach((k,j)=>{ if(!k) return; let v=(r[j]||"").trim(); if(BLANK(v)) v="";
+      if(/^="?[^"]*"?$/.test(v)) v=v.replace(/^="?|"$/g,""); else if(/^'[=+@\-]/.test(v)) v=v.slice(1);
+      // DMC has two "เลขประจำตัวนักเรียน" columns: the 13-digit one is the citizen ID
+      if(k==="studentId" && /^(\d{13}|G\d{12})$/.test(cidClean(v))){ if(!o.citizenId) o.citizenId=v; return; }
+      if(v || o[k]===undefined) o[k]=v; });
+    [["_g","guardian"],["_f","father"],["_m","mother"]].forEach(([p,k])=>{ if(o[p+"F"]!==undefined && !o[k]) o[k]=joinName(o[p+"P"],o[p+"F"],o[p+"L"]); delete o[p+"P"]; delete o[p+"F"]; delete o[p+"L"]; });
+    if(o.gender) o.gender={"ช":"ชาย","ญ":"หญิง","ชาย":"ชาย","หญิง":"หญิง"}[o.gender]||o.gender;
+    ["weight","height"].forEach(k=>{ if(o[k]!==undefined && !(parseFloat(o[k])>0)) o[k]=""; });
+    o.citizenId=cidClean(o.citizenId); DATE_KEYS.forEach(k=>{ if(o[k]!==undefined) o[k]=normDate(o[k]); });
+    if(hasStatus) o.status=normStatus(o.status);
+    const g=normGrade(o.grade); if(o.grade && !g) problems.push(`แถว ${hi+i+2}: ไม่รู้จักชั้น “${o.grade}” นำเข้าโดยยังไม่ระบุชั้น ให้แก้ภายหลัง`); o.grade=g;
+    if(ADDR_KEYS.some(k=>o[k])) Object.assign(o, cleanAddr(o)); else if(o.address) Object.assign(o, parseAddr(o.address));
+    if(ADDR_KEYS.some(k=>o[k])) o.address=composeAddr(o);
+    const line=hi+i+2;
+    if(!o.studentId||!o.firstName) problems.push(`แถว ${line}: ไม่มีเลขประจำตัวหรือชื่อ (ข้าม)`); else if(o.citizenId && !cidValid(o.citizenId)) problems.push(`แถว ${line}: เลขประชาชนของ ${o.firstName} ไม่ถูกต้อง (นำเข้าแต่ควรตรวจ)`);
+    return o; }).filter(o=>o.studentId&&o.firstName);
+  return {rows:out, problems, hasFirst:keys.includes("firstName")};
+}
 let importRows=[];
 function openImport(){
   importRows=[]; $("#btnDoImport").disabled=true;
-  $("#importBody").innerHTML=`<p class="sub" style="margin:0 0 12px">ไฟล์ต้องมีแถวหัวตารางตามแบบฟอร์ม บันทึกจาก Excel เป็น “CSV UTF-8” วันที่ใช้ได้ทั้ง 15/05/2556 (พ.ศ.) และ 2013-05-15 ถ้าเลขประจำตัวนักเรียนซ้ำกับที่มีอยู่ ระบบจะอัปเดตข้อมูลเดิม</p>
-  <div class="row" style="margin-bottom:12px"><label class="btn primary" for="csvFile">เลือกไฟล์ CSV<input type="file" id="csvFile" accept=".csv,text/csv" hidden></label><button type="button" class="btn" data-act="csv-template">ดาวน์โหลดแบบฟอร์ม</button></div>
+  $("#importBody").innerHTML=`<p class="sub" style="margin:0 0 12px">ใช้ไฟล์ส่งออกจากระบบ DMC (.xlsx หรือ .csv) ได้ทันที หรือใช้แบบฟอร์มของโปรแกรมนี้ วันที่ใช้ได้ทั้ง 15/05/2556 (พ.ศ.) และ 2013-05-15 ถ้าเลขประจำตัวนักเรียนซ้ำกับที่มีอยู่ ระบบจะอัปเดตข้อมูลเดิม</p>
+  <div class="row" style="margin-bottom:12px"><label class="btn primary" for="csvFile">เลือกไฟล์ Excel หรือ CSV<input type="file" id="csvFile" accept=".csv,.xlsx,.xls,text/csv" hidden></label><button type="button" class="btn" data-act="csv-template">ดาวน์โหลดแบบฟอร์ม</button></div>
   <div id="importPreview" class="hint">หัวตารางที่รองรับ: ${CSV_COLS.map(c=>c[1]).join(", ")}</div>`;
-  $("#csvFile").addEventListener("change", async e=>{ const f=e.target.files[0]; if(!f) return; const rows=parseCSV(await f.text()); if(rows.length<2){ $("#importPreview").textContent="ไม่พบข้อมูลในไฟล์"; return; }
-    const head=rows[0].map(x=>x.trim()); const idx=CSV_COLS.map(([k,l])=>[k, head.findIndex(x=>x===l||x===k)]);
-    if(idx.find(([k])=>k==="firstName")[1]<0){ $("#importPreview").innerHTML=`<span class="hint bad">ไม่พบคอลัมน์ “ชื่อ” ตรวจว่าหัวตารางตรงกับแบบฟอร์ม</span>`; return; }
-    const problems=[];
-    importRows = rows.slice(1).map((r,i)=>{ const o={}; idx.forEach(([k,j])=>{ if(j>=0) o[k]=(r[j]||"").trim(); });
-      o.citizenId=(o.citizenId||"").replace(/\D/g,""); ["birthDate","enrollDate","leaveDate"].forEach(k=>o[k]=normDate(o[k])); o.status=normStatus(o.status); o.grade=normGrade(o.grade)||GRADES[0];
-      if(ADDR_KEYS.some(k=>o[k])) Object.assign(o, cleanAddr(o)); else if(o.address) Object.assign(o, parseAddr(o.address));
-      if(ADDR_KEYS.some(k=>o[k])) o.address=composeAddr(o);
-      if(!o.studentId||!o.firstName) problems.push(`แถว ${i+2}: ไม่มีเลขประจำตัวหรือชื่อ (ข้าม)`); else if(o.citizenId && !cidValid(o.citizenId)) problems.push(`แถว ${i+2}: เลขประชาชนของ ${o.firstName} ไม่ถูกต้อง (นำเข้าแต่ควรตรวจ)`);
-      return o; }).filter(o=>o.studentId&&o.firstName);
+  $("#csvFile").addEventListener("change", async e=>{ const f=e.target.files[0]; if(!f) return; let rows;
+    try{ rows = /\.xlsx?$/i.test(f.name) ? await readXlsx(f) : parseCSV(await readTextFile(f)); }catch(err){ $("#importPreview").innerHTML=`<span class="hint bad">${h(err.message||"อ่านไฟล์ไม่ได้")}</span>`; return; } if(rows.length<2){ $("#importPreview").textContent="ไม่พบข้อมูลในไฟล์"; return; }
+    const m=mapImportRows(rows);
+    if(!m || !m.hasFirst){ $("#importPreview").innerHTML=`<span class="hint bad">ไม่พบคอลัมน์ “ชื่อ” ตรวจว่าหัวตารางตรงกับแบบฟอร์ม</span>`; return; }
+    const problems=m.problems; importRows=m.rows;
     const upd=importRows.filter(o=>state.students.some(s=>s.studentId===o.studentId)).length;
     $("#importPreview").innerHTML=`<p style="margin:0 0 8px;color:var(--ink)">พร้อมนำเข้า <b>${importRows.length}</b> คน (ใหม่ ${importRows.length-upd}, อัปเดต ${upd})</p>${problems.length?`<div class="warnline">${problems.slice(0,8).map(h).join("<br>")}${problems.length>8?`<br>และอีก ${problems.length-8} รายการ`:""}</div>`:""}
     <div class="tablebox" style="margin-top:10px;max-height:240px;overflow:auto"><table><thead><tr><th>เลขประจำตัว</th><th>ชื่อ–สกุล</th><th>ชั้น</th><th>สถานะ</th></tr></thead><tbody>${importRows.slice(0,50).map(o=>`<tr><td>${h(o.studentId)}</td><td>${h(fullName(o))}</td><td>${h(o.grade)}/${h(o.room||"")}</td><td>${h(STATUSES[o.status])}</td></tr>`).join("")}</tbody></table></div>`;
@@ -815,47 +1160,63 @@ function openImport(){
   $("#dlgImport").showModal();
 }
 $("#btnDoImport").addEventListener("click", async()=>{ const b=$("#btnDoImport"); b.disabled=true; let n=0;
-  try{ for(const o of importRows){ const ex=state.students.find(s=>s.studentId===o.studentId); const id=ex?._id||newId(); const now=new Date().toISOString();
-      const body={...(ex||{}),...Object.fromEntries(Object.entries(o).filter(([,v])=>v!=="")),updatedAt:now}; if(!ex) body.createdAt=now; delete body._id; delete body.example;
-      await saveDoc("students",id,body); n++; b.textContent=`กำลังนำเข้า ${n}/${importRows.length}`; }
+  try{ const now=new Date().toISOString();
+    const items=importRows.map(o=>{ const ex=state.studentsAll.find(s=>s.studentId===o.studentId); const id=ex?._id||newId();
+      const body={...(ex||{}),...Object.fromEntries(Object.entries(o).filter(([,v])=>v!=="")),updatedAt:now}; if(!ex){ body.createdAt=now; body.status=body.status||"active"; } delete body._id; delete body.example; delete body.deletedAt; return [id,body]; });
+    await saveMany("students", items, k=>{ n=k; b.textContent=`กำลังนำเข้า ${n}/${importRows.length}`; });
     $("#dlgImport").close(); toast(`นำเข้าแล้ว ${n} คน`);
   }catch(e){ writeErr(e); toast(`นำเข้าได้ ${n} คนก่อนเกิดข้อผิดพลาด`); } finally{ b.textContent="นำเข้า"; b.disabled=false; } });
 async function saveText(name, text){
-  if(!state.dl){ toast("หน้านี้ดาวน์โหลดไฟล์ไม่ได้ เปิดหน้าใน claude.ai เพื่อดาวน์โหลด"); return; }
-  try{ await state.dl.save({filename:name, data:"﻿"+text}); toast("บันทึกไฟล์แล้ว"); }catch(e){ if(e?.code!=="declined") toast("บันทึกไฟล์ไม่สำเร็จ"); }
+  try{ await saveFile(name, "﻿"+text); toast("บันทึกไฟล์แล้ว"); }catch(e){ if(e?.code!=="declined") toast("บันทึกไฟล์ไม่สำเร็จ"); }
 }
-function exportStudents(){ const rows=[CSV_COLS.map(c=>c[1]).join(",")].concat(sortStudents([...state.students]).map(s=>CSV_COLS.map(([k])=>csvCell(k==="status"?STATUSES[s[k]]:(["birthDate","enrollDate","leaveDate"].includes(k)&&s[k]?thaiDateShort(s[k]):s[k]))).join(",")));
+function exportStudents(){ const rows=[CSV_COLS.map(c=>c[1]).join(",")].concat(sortStudents([...state.students]).map(s=>CSV_COLS.map(([k])=>CSV_TEXT_KEYS.includes(k)?csvText(s[k]):csvCell(k==="status"?STATUSES[s[k]]:(DATE_KEYS.includes(k)&&s[k]?thaiDateShort(s[k]):s[k]))).join(",")));
   saveText(`ทะเบียนนักเรียน_${todayISO()}.csv`, rows.join("\r\n")); }
 function exportLog(){ const rows=[["เลขที่","ลงวันที่","ประเภท","เลขประจำตัว","ชื่อ–สกุล","ชั้น","ห้อง","ใช้เพื่อ","สถานะ"].join(",")].concat(state.issued.map(d=>[d.number,thaiDateShort(d.date),DOCTYPES[d.type]?.name,d.studentId,d.studentName,d.grade,d.room,d.purpose,d.voided?"ยกเลิก":"ใช้งาน"].map(csvCell).join(",")));
   saveText(`ทะเบียนคุมเอกสาร_${todayISO()}.csv`, rows.join("\r\n")); }
 
 /* ---------- global actions ---------- */
 document.addEventListener("click", async e=>{
-  const c=e.target.closest("[data-close]"); if(c){ c.closest("dialog").close(); return; }
+  const c=e.target.closest("[data-close]"); if(c){ const dl=c.closest("dialog");
+    if(dl.id==="dlgStudent" && formDirty && !await confirmBox("ปิดโดยไม่บันทึก?","ข้อมูลที่แก้ไขในฟอร์มนี้ยังไม่ได้บันทึก จะหายไปถ้าปิด","ปิดโดยไม่บันทึก")) return;
+    formDirty=false; dl.close(); return; }
   const p=e.target.closest("[data-pick]"); if(p){ pickStudent(p.dataset.pick); return; }
   const a=e.target.closest("[data-act]"); if(!a) return; const id=a.dataset.id;
   switch(a.dataset.act){
     case "go-students": go("students"); break;
     case "go-settings": go("setup"); break;
     case "add": openStudent(null); break;
+    case "movein": openStudent(null,{movein:true}); break;
+    case "promote": openPromote(); break;
     case "edit": openStudent(id); break;
-    case "issue-for": iss.sid=id; iss.sids=[id]; iss.q=""; if(!iss.attachEdited) iss.attach=defaultAttach(1); go("issue"); break;
+    case "issue-for": iss.sid=id; iss.sids=[id]; iss.q=""; if(!iss.attachEdited) iss.attach=defaultAttach(1, state.students.filter(x=>x._id===id)); go("issue"); break;
     case "import": openImport(); break;
     case "export": exportStudents(); break;
     case "export-log": exportLog(); break;
+    case "backup": { const data={app:"student-registry",version:1,savedAt:new Date().toISOString(),school:state.school,students:state.studentsAll,issued:state.issued};
+      try{ await saveFile(`สำรองข้อมูลทะเบียน_${todayISO()}.json`, new Blob([JSON.stringify(data)],{type:"application/json"})); toast("บันทึกไฟล์สำรองแล้ว"); lsSet("reg.lastBackup",new Date().toISOString()); renderBanner(); }catch(err){ if(err?.code!=="declined") toast("บันทึกไฟล์ไม่สำเร็จ"); } break; }
     case "csv-template": { const ex={studentId:"10234",citizenId:"1103700012346",prefix:"เด็กชาย",firstName:"ตัวอย่าง",lastName:"นามสกุลตัวอย่าง",grade:"ป.4",room:"1",birthDate:"15/05/2559",status:"กำลังศึกษา",enrollDate:"16/05/2566",nationality:"ไทย",religion:"พุทธ",bloodType:"O",father:"นายตัวอย่าง นามสกุลตัวอย่าง",addrNo:"9",addrMoo:"9",addrTambon:"บึงคอไห",addrAmphoe:"ลำลูกกา",addrProvince:"ปทุมธานี",addrZip:"12150"};
       saveText("แบบฟอร์มนำเข้านักเรียน.csv", CSV_COLS.map(c=>c[1]).join(",")+"\r\n"+CSV_COLS.map(([k])=>csvCell(ex[k]||"")).join(",")); break; }
     case "del-student": { const s=editing; if(!s) return;
       const used=state.issued.filter(d=>d.studentRef===s._id || (d.studentRefs||[]).includes(s._id)).length;
-      const ok=await confirmBox("ลบนักเรียน",`ลบ <b>${h(fullName(s))}</b> ออกจากทะเบียน?${used?`<p class="hint">มีเอกสาร ${used} ฉบับที่ออกให้คนนี้ ทะเบียนคุมเอกสารยังเก็บสำเนาข้อมูลไว้</p>`:""}<p class="hint">ถ้านักเรียนย้ายหรือจบ ควรเปลี่ยน “สถานะ” แทนการลบ</p>`,"ลบ");
-      if(!ok) return; try{ await deleteDoc("students",s._id); $("#dlgStudent").close(); toast("ลบแล้ว"); }catch(err){ writeErr(err); } break; }
+      const ok=await confirmBox("ย้ายไปถังขยะ",`ย้าย <b>${h(fullName(s))}</b> ไปถังขยะ? กู้คืนได้จากปุ่ม “ถังขยะ” ในแท็บทะเบียนนักเรียน${used?`<p class="hint">มีเอกสาร ${used} ฉบับที่ออกให้คนนี้ ทะเบียนคุมเอกสารยังเก็บสำเนาเฉพาะข้อมูลที่พิมพ์ในเอกสารไว้</p>`:""}<p class="hint">ถ้านักเรียนย้ายหรือจบ ควรเปลี่ยน “สถานะ” แทนการลบ</p>`,"ย้ายไปถังขยะ");
+      if(!ok) return; try{ const body={...s,deletedAt:new Date().toISOString()}; delete body._id; await saveDoc("students",s._id,body); formDirty=false; $("#dlgStudent").close(); toast("ย้ายไปถังขยะแล้ว"); }catch(err){ writeErr(err); } break; }
+    case "trash": openTrash(); break;
+    case "restore": { const x=state.trash.find(t=>t._id===id); if(!x) return; if(state.students.some(t=>t.studentId===x.studentId)){ toast(`เลขประจำตัว ${x.studentId} มีนักเรียนคนอื่นใช้อยู่ แก้เลขของคนนั้นก่อน`); return; }
+      const body={...x}; delete body._id; delete body.deletedAt; try{ await saveDoc("students",id,body); toast("กู้คืนแล้ว"); openTrash(); }catch(err){ writeErr(err); } break; }
+    case "purge": { const x=state.trash.find(t=>t._id===id); if(!x) return;
+      if(!await confirmBox("ลบถาวร",`ลบข้อมูลของ <b>${h(fullName(x))}</b> ถาวร? กู้คืนไม่ได้อีก`,"ลบถาวร")) { openTrash(); return; }
+      try{ await deleteDoc("students",id); toast("ลบถาวรแล้ว"); openTrash(); }catch(err){ writeErr(err); } break; }
+    case "print-rec": { const d=state.issued.find(x=>x._id===id); if(d) printPages(recordHTML(d)); break; }
     case "reprint": { const d=state.issued.find(x=>x._id===id); if(d) exportPdf(recordHTML(d), fileName(d)); break; }
     case "void": { const d=state.issued.find(x=>x._id===id); if(!d) return;
-      const ok=await confirmBox("ยกเลิกเลขหนังสือ",`ยกเลิกเลขที่ <b>${h(D(d.number))}</b> ของ ${h(d.studentName)}? เลขนี้จะยังอยู่ในทะเบียนคุมโดยมีเครื่องหมาย “ยกเลิก” และจะไม่ถูกนำกลับมาใช้`,"ยกเลิกเลข");
-      if(!ok) return; const body={...d,voided:true,voidedAt:new Date().toISOString()}; delete body._id; try{ await saveDoc("issued",d._id,body); toast("ยกเลิกเลขแล้ว"); }catch(err){ writeErr(err); } break; }
+      const ok=await confirmBox("ยกเลิกเลขหนังสือ",`ยกเลิกเลขที่ <b>${h(D(d.number))}</b> ของ ${h(d.studentName)}? เลขนี้จะยังอยู่ในทะเบียนคุมโดยมีเครื่องหมาย “ยกเลิก” และจะไม่ถูกนำกลับมาใช้<label class="f" for="voidReason" style="margin-top:12px">เหตุผลที่ยกเลิก *<input id="voidReason" placeholder="เช่น พิมพ์ชื่อผิด ออกฉบับใหม่แทน"></label>`,"ยกเลิกเลข");
+      if(!ok) return; const reason=($("#voidReason")?.value||"").trim(); if(!reason){ toast("กรอกเหตุผลที่ยกเลิกก่อน"); return; }
+      const body={...d,voided:true,voidReason:reason,voidedAt:new Date().toISOString()}; delete body._id; try{ await saveDoc("issued",d._id,body); toast("ยกเลิกเลขแล้ว"); }catch(err){ writeErr(err); } break; }
   }
 });
 
+$("#dlgStudent").addEventListener("cancel", async e=>{ if(!formDirty) return; e.preventDefault();
+  if(await confirmBox("ปิดโดยไม่บันทึก?","ข้อมูลที่แก้ไขในฟอร์มนี้ยังไม่ได้บันทึก จะหายไปถ้าปิด","ปิดโดยไม่บันทึก")){ formDirty=false; $("#dlgStudent").close(); } });
 $("#provinceList").innerHTML = PROVINCES.map(p=>`<option value="${p}">`).join("");
 go(VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview");
 boot();
