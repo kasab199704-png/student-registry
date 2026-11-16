@@ -171,6 +171,30 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .paper .llist .ln{flex:none;width:0.8cm}
 .paper .llist .lt{flex:1;min-width:0}
 .paper .llist + p{margin-top:6pt}
+.paper-scale .paper + .paper{margin-top:16px}
+/* คำสั่งโรงเรียน and form pages */
+.paper .ohd{text-align:center;font-weight:700;margin-top:6pt;line-height:1.3}
+.paper .oline{text-align:center;margin:0 0 6pt}
+.paper .osec{margin-top:6pt;font-weight:700}
+.paper .oname{margin-left:2.5cm}
+.paper .osign{margin-top:18pt;margin-left:6cm;width:10cm;text-align:center}
+.paper .osign .lgap{height:3.6em}
+.paper.order .ohd{margin-top:2pt;line-height:1.15}
+.paper.order .oline{line-height:.8;margin:0 0 2pt}
+.paper.order p + p,.paper.order .osec{margin-top:2pt}
+.paper.order .osign{margin-top:8pt;line-height:1.15}
+.paper.order .body{line-height:1.12}
+.paper.order .osign .lgap{height:2.8em}
+.paper .ftitle{text-align:center;font-weight:700}
+.paper .flist{margin-left:1cm}
+.paper .fi{display:flex;gap:8pt}
+.paper .fi .fq{margin-left:auto;white-space:nowrap}
+.paper .fnote{margin-top:8pt}
+.paper table.ft{border-collapse:collapse;width:100%;margin-top:6pt}
+.paper table.ft th,.paper table.ft td{border:1px solid #000;padding:2pt 6pt;color:#000;background:#fff;white-space:normal;font-size:15pt;letter-spacing:0;text-align:left;vertical-align:top}
+.paper table.ft th{text-align:center;font-weight:700}
+.paper table.ft tbody tr:last-child td{border-bottom:1px solid #000}
+.paper table.ft tbody tr:hover td{background:#fff}
 /* dialogs */
 dialog{border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);padding:0;width:min(860px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
 dialog::backdrop{background:rgba(10,15,25,.45)}
@@ -205,6 +229,7 @@ dialog.small{width:min(440px,calc(100vw - 32px))}
   <button role="tab" data-view="students" aria-selected="false">ทะเบียนนักเรียน</button>
   <button role="tab" data-view="issue" aria-selected="false">ออกเอกสาร</button>
   <button role="tab" data-view="log" aria-selected="false">ทะเบียนคุมเอกสาร</button>
+  <button role="tab" data-view="letters" aria-selected="false">หนังสือราชการ</button>
   <button role="tab" data-view="reports" aria-selected="false">รายงาน</button>
   <button role="tab" data-view="setup" aria-selected="false">ตั้งค่า</button>
 </div></nav>
@@ -214,6 +239,7 @@ dialog.small{width:min(440px,calc(100vw - 32px))}
   <section id="v-students" hidden></section>
   <section id="v-issue" hidden></section>
   <section id="v-log" hidden></section>
+  <section id="v-letters" hidden></section>
   <section id="v-reports" hidden></section>
   <section id="v-setup" hidden></section>
 </main>
@@ -251,6 +277,10 @@ const DOCTYPES = {
 };
 const DEFAULT_SCHOOL = {name:"",address:"",affiliation:"",director:"",directorPos:"",registrar:"",phone:"",docPrefix:"ศธ ",numMode:"own",crutTop:"1.5",showTitle:false,year:"",curriculum:"หลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน พุทธศักราช ๒๕๕๑",curriculumEarly:"หลักสูตรการศึกษาปฐมวัย พุทธศักราช ๒๕๖๐",thaiDigits:true,logo:""};
 
+// เอกสารที่ไม่ได้ออกให้นักเรียนรายคน แต่ลงทะเบียนคุมเลขเดียวกัน
+const OTHER_TYPES = {outgoing:{name:"หนังสือส่ง (จองเลข)"}, order:{name:"คำสั่งโรงเรียน"}, purchase:{name:"หนังสือขอซื้อแบบพิมพ์"}};
+const typeName = t => (DOCTYPES[t]||OTHER_TYPES[t])?.name || t;
+
 /* ---------- helpers ---------- */
 const $ = (s,el=document)=>el.querySelector(s);
 const h = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -280,7 +310,7 @@ function lsGet(k){ try{return localStorage.getItem(k);}catch{return null;} }
 function lsSet(k,v){ try{localStorage.setItem(k,v);}catch{} }
 
 /* ---------- state + store ---------- */
-const state = {school:{...DEFAULT_SCHOOL}, students:[], studentsAll:[], trash:[], batches:[], issued:[], loaded:{school:false,students:false,issued:false}, db:null, dl:null, offline:false, readOnly:false, slow:false};
+const state = {school:{...DEFAULT_SCHOOL}, students:[], studentsAll:[], trash:[], batches:[], forms:[], issued:[], loaded:{school:false,students:false,issued:false}, db:null, dl:null, offline:false, readOnly:false, slow:false};
 const newId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
 /* local mode: when the page is opened outside claude.ai (a file on this computer, any web host)
@@ -333,7 +363,7 @@ async function boot(){
   state.dl = dl;
   if(!db){
     state.offline=true; state.local=await local.open();
-    if(state.local){ state.school={...DEFAULT_SCHOOL,...(await local.get("school")||{})}; setStudents(await local.get("students")||[]); state.batches=await local.get("batches")||[]; state.issued=sortIssued(await local.get("issued")||[]);
+    if(state.local){ state.school={...DEFAULT_SCHOOL,...(await local.get("school")||{})}; setStudents(await local.get("students")||[]); state.batches=await local.get("batches")||[]; state.forms=await local.get("forms")||[]; state.issued=sortIssued(await local.get("issued")||[]);
       try{ navigator.storage?.persist?.(); }catch{} }
     Object.keys(state.loaded).forEach(k=>state.loaded[k]=true); renderAll(); return; }
   state.db = db;
@@ -348,6 +378,7 @@ async function boot(){
     setStudents(s.docs.map(d=>({...d.data(),_id:d.id})));
     if(!s.metadata.fromCache) state.loaded.students=true; done(); renderAll();
   }, onErr);
+  db.collection("forms").onSnapshot(s=>{ state.forms=s.docs.map(d=>({...d.data(),_id:d.id})); renderAll(); }, e=>console.error(e));
   db.collection("batches").onSnapshot(s=>{ state.batches=s.docs.map(d=>({...d.data(),_id:d.id})); renderAll(); }, e=>console.error(e));
   db.collection("issued").orderBy("createdAt","desc").limit(1000).onSnapshot(s=>{
     state.issued = s.docs.map(d=>({...d.data(),_id:d.id}));
@@ -357,7 +388,7 @@ async function boot(){
 
 /* ---------- navigation ---------- */
 let view = "overview";
-const VIEWS=["overview","students","issue","log","reports","setup"];
+const VIEWS=["overview","students","issue","log","letters","reports","setup"];
 function go(v){ if(!VIEWS.includes(v)) v="overview"; view=v;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.view===v)));
   VIEWS.forEach(x=>$("#v-"+x).hidden = x!==v);
@@ -369,7 +400,7 @@ addEventListener("hashchange",()=>go(location.hash.slice(1)));
 /* ---------- render ---------- */
 function renderAll(){ renderHeader(); renderBanner();
   if(view==="overview") renderOverview(); else if(view==="students") renderStudents();
-  else if(view==="issue") renderIssue(); else if(view==="log") renderLog(); else if(view==="reports") renderReports(); else if(!$("#fSchool")?.contains(document.activeElement)) renderSettings(); }
+  else if(view==="issue") renderIssue(); else if(view==="log") renderLog(); else if(view==="reports") renderReports(); else if(view==="letters") renderLetters(); else if(!$("#fSchool")?.contains(document.activeElement)) renderSettings(); }
 
 function renderHeader(){
   const s=state.school;
@@ -403,7 +434,7 @@ function renderOverview(){
   const mt = active.filter(isM).length;
   if(rows) rows += `<tr><td><b>รวม</b></td><td></td><td class="num"><b>${D(mt)}</b></td><td class="num"><b>${D(active.length-mt)}</b></td><td class="num"><b>${D(active.length)}</b></td></tr>`;
   const thisYear = state.issued.filter(d=>d.year===beYearNow() && !d.voided);
-  const recent = state.issued.slice(0,6).map(d=>`<tr><td class="mono">${h(D(d.number))}</td><td>${h(DOCTYPES[d.type]?.name||d.type)}</td><td>${h(d.studentName)}</td><td>${h(thaiDateShort(d.date))}</td></tr>`).join("");
+  const recent = state.issued.slice(0,6).map(d=>`<tr><td class="mono">${h(D(d.number))}</td><td>${h(typeName(d.type))}</td><td>${h(d.studentName)}</td><td>${h(thaiDateShort(d.date))}</td></tr>`).join("");
   el.innerHTML = `
   <h2>ภาพรวมงานทะเบียน</h2><p class="sub">ข้อมูล ณ วันที่ ${h(thaiDate(todayISO()))}${loading()?" · กำลังโหลด…":""}</p>
   <div class="stats">
@@ -412,6 +443,7 @@ function renderOverview(){
     <div class="stat"><b>${D(by("moved")+by("quit"))}</b><span>ย้ายออก / ลาออก</span></div>
     <div class="stat"><b>${D(thisYear.length)}</b><span>เอกสารที่ออกในปี ${D(beYearNow())}</span></div>
   </div>
+  ${lowStockHTML()}
   <div class="grid2">
     <div class="panel"><h3>จำนวนนักเรียนที่กำลังศึกษา แยกตามชั้นและเพศ</h3>
       ${rows ? `<div class="tablebox"><table><thead><tr><th>ชั้น</th><th class="num">ห้อง</th><th class="num">ชาย</th><th class="num">หญิง</th><th class="num">รวม</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -651,12 +683,20 @@ function drawPick(){
     : `<div class="empty" style="padding:16px">${state.students.length?"ไม่พบชื่อนี้":"ยังไม่มีนักเรียนในทะเบียน"}</div>`;
   const hint=$("#isPickHint"); if(hint) hint.textContent = isLetter() ? `เลือกได้หลายคน สำหรับพี่น้องหรือญาติที่ย้ายไปสถานศึกษาเดียวกัน · เลือกแล้ว ${iss.sids.length} คน` : "";
 }
-function fitPaper(){ const w=$("#paperWrap"); if(!w) return; const avail=w.clientWidth-24; const px=210*96/25.4; const s=Math.min(1,avail/px);
-  const sc=$("#paperScale"); sc.style.transform=`scale(${s})`; sc.style.width=px+"px"; sc.style.height=(297*96/25.4*s)+"px"; }
+function fitIn(w, sc){ if(!w||!sc) return; const avail=w.clientWidth-24; const px=210*96/25.4; const s=Math.min(1,avail/px); const n=Math.max(1,sc.children.length);
+  sc.style.transform=`scale(${s})`; sc.style.width=px+"px"; sc.style.height=((297*96/25.4*n+16*(n-1))*s)+"px"; }
+function fitPaper(){ fitIn($("#paperWrap"),$("#paperScale")); }
 // เลขที่หนังสือนับตามปีปฏิทินของ "วันที่ลงในหนังสือ" ไม่ใช่วันที่กดออกเลข
 const docYear = iso => (Number(String(iso||todayISO()).slice(0,4))||new Date().getFullYear())+543;
-const nextSeq = y => state.issued.filter(d=>d.year===y).reduce((m,d)=>Math.max(m,d.seq||0),0)+1;
-function nextNumber(type=iss.type){ const y=docYear(iss.date); return fmtNumber(nextSeq(y),y,type); }
+// เลขที่แยก ๓ ชุด นับใหม่ทุกปีปฏิทิน: cert = หนังสือรับรอง (ลำดับ/พ.ศ.), out = ทะเบียนหนังสือส่ง (รหัสส่วนราชการ/ลำดับ),
+// order = คำสั่งโรงเรียน (ลำดับ/พ.ศ.) — เลขที่ยกเลิกแล้วไม่นำกลับมาใช้
+const seriesOf = d => d.series || (/^ที่ \d+\/\d{4}$/.test(String(d.number||"")) ? "cert" : "out");
+const seriesFor = type => type==="order" ? "order" : OTHER_TYPES[type] ? "out" : (state.school.numMode==="external" || DOCTYPES[type]?.letter) ? "out" : "cert";
+const nextSeq = (y, series) => state.issued.filter(d=>d.year===y && seriesOf(d)===series).reduce((m,d)=>Math.max(m,d.seq||0,d.seq2||0),0)+1;
+const seqTaken = (y, series, n) => state.issued.some(d=>d.year===y && seriesOf(d)===series && (d.seq===n || d.seq2===n));
+const outPrefix = () => String(state.school.docPrefix||"").replace(/^\s*ที่\s*/,"");
+const outNo = seq => `ที่ ${outPrefix()}${seq}`;
+function nextNumber(type=iss.type){ const y=docYear(iss.date); return fmtNumber(nextSeq(y,seriesFor(type)),y,type); }
 function fmtNumber(seq,y,type){ const sc=state.school; if(sc.numMode==="external" || DOCTYPES[type]?.letter){ const pre=String(sc.docPrefix||"").replace(/^\s*ที่\s*/,""); return `ที่ ${pre}${seq}`; } return `ที่ ${seq}/${y}`; }
 function drawPreview(){
   const list=selStudents(), s=list[0], w=$("#isWarn");
@@ -768,20 +808,20 @@ async function issueDoc(){
   if(state.readOnly){ toast("คุณมีสิทธิ์ดูอย่างเดียว"); return; }
   if(!state.school.name){ toast("กรอกชื่อสถานศึกษาในแท็บ “ตั้งค่า” ก่อน"); return; }
   if(loading()){ toast("รอให้ข้อมูลโหลดครบก่อน เพื่อไม่ให้เลขหนังสือซ้ำ"); return; }
-  const y=docYear(iss.date); let seq=nextSeq(y);
+  const y=docYear(iss.date), ser=seriesFor(iss.type); let seq=nextSeq(y,ser);
   const ok = await confirmBox("ออกเลขหนังสือ", `<dl class="kv"><dt>เลขที่</dt><dd>${h(D(fmtNumber(seq,y,iss.type)))}</dd><dt>ประเภท</dt><dd>${h(DOCTYPES[iss.type].name)}</dd><dt>นักเรียน</dt><dd>${h(names)}</dd><dt>ลงวันที่</dt><dd>${h(thaiDate(iss.date))}</dd></dl>`, "ออกเลขและบันทึก");
   if(!ok) return;
-  if(nextSeq(y)!==seq){ seq=nextSeq(y); toast(`มีการออกเลขจากที่อื่นระหว่างนี้ เลขที่เปลี่ยนเป็น ${D(fmtNumber(seq,y,iss.type))}`); }
+  if(nextSeq(y,ser)!==seq){ seq=nextSeq(y,ser); toast(`มีการออกเลขจากที่อื่นระหว่างนี้ เลขที่เปลี่ยนเป็น ${D(fmtNumber(seq,y,iss.type))}`); }
   const snaps = list.map(snapOf);
-  const rec = {attach:iss.attach, relation:iss.relation, reqName:iss.reqName, reqAddr:iss.reqAddr, studentRefs:list.map(x=>x._id), snapshots:snaps, number:fmtNumber(seq,y,iss.type), seq, year:y, type:iss.type, studentRef:s._id, studentId:list.map(x=>x.studentId||"").join(", "), studentName:names, grade:s.grade||"", room:s.room||"",
+  const rec = {series:ser, attach:iss.attach, relation:iss.relation, reqName:iss.reqName, reqAddr:iss.reqAddr, studentRefs:list.map(x=>x._id), snapshots:snaps, number:fmtNumber(seq,y,iss.type), seq, year:y, type:iss.type, studentRef:s._id, studentId:list.map(x=>x.studentId||"").join(", "), studentName:names, grade:s.grade||"", room:s.room||"",
     purpose:iss.purpose, extra:iss.extra, date:iss.date, photo:iss.photo, snapshot:snapOf(s), school:{...state.school, logo:undefined}, createdAt:new Date().toISOString(), voided:false};
   delete rec.school.logo;
   $("#isIssue").disabled=true;
   try{ await saveDoc("issued", newId(), rec); toast(`ออกเลข ${D(rec.number)} แล้ว`); await exportPdf(recordHTML(rec), fileName(rec)); }
   catch(e){ writeErr(e); } finally{ $("#isIssue").disabled=false; }
 }
-function recordHTML(r){ const keep=state.school; state.school={...DEFAULT_SCHOOL,...r.school,logo:keep.logo}; try{ return paperHTML(r.snapshot,{students:r.snapshots||[r.snapshot],relation:r.relation||"",reqName:r.reqName||"",reqAddr:r.reqAddr||"",attach:r.attach||"",number:r.number,type:r.type,purpose:r.purpose,extra:r.extra,date:r.date,photo:r.photo}); } finally{ state.school=keep; } }
-const fileName = r => `${r.number.replace(/[\\/:*?"<>|]/g,"-").replace(/\s+/g,"")}_${DOCTYPES[r.type]?.short||DOCTYPES[r.type]?.name||r.type}_${(r.snapshots||[r.snapshot]).map(x=>x?.firstName||"").join("-")}.pdf`;
+function recordHTML(r){ const keep=state.school; state.school={...DEFAULT_SCHOOL,...r.school,logo:keep.logo}; try{ if(r.type==="order") return orderHTML(r.data); if(r.type==="purchase") return purchaseHTML(r.data); return paperHTML(r.snapshot,{students:r.snapshots||[r.snapshot],relation:r.relation||"",reqName:r.reqName||"",reqAddr:r.reqAddr||"",attach:r.attach||"",number:r.number,type:r.type,purpose:r.purpose,extra:r.extra,date:r.date,photo:r.photo}); } finally{ state.school=keep; } }
+const fileName = r => `${r.number.replace(/[\\/:*?"<>|]/g,"-").replace(/\s+/g,"")}_${DOCTYPES[r.type]?.short||typeName(r.type)}_${(r.snapshots||[r.snapshot]).map(x=>x?.firstName||"").join("-")}.pdf`;
 
 // Rasterise the sheet with the browser's own text layout (SVG foreignObject), so Thai line breaks and
 // vowel/tone-mark stacking match the on-screen preview exactly; then place the image on an A4 PDF page.
@@ -812,9 +852,10 @@ async function renderPaperCanvas(html, scale=3){
   }
 }
 async function buildPdf(html){
-  const c=await renderPaperCanvas(html,3);
+  const tmp=document.createElement("div"); tmp.innerHTML=html;
+  const pages=[...tmp.children].filter(x=>x.classList.contains("paper")).map(x=>x.outerHTML); if(!pages.length) pages.push(html);
   const pdf=new window.jspdf.jsPDF({unit:"mm",format:"a4",orientation:"portrait",compress:true});
-  pdf.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,210,297,undefined,"FAST");
+  for(let i=0;i<pages.length;i++){ const c=await renderPaperCanvas(pages[i],3); if(i) pdf.addPage(); pdf.addImage(c.toDataURL("image/jpeg",0.92),"JPEG",0,0,210,297,undefined,"FAST"); }
   return pdf.output("blob");
 }
 window.__regTest={renderPaperCanvas,buildPdf,paperHTML:(...a)=>paperHTML(...a)};
@@ -841,8 +882,230 @@ async function exportPdf(html, name){
     if(await confirmBox("สร้าง PDF ไม่สำเร็จ","เบราว์เซอร์นี้สร้างไฟล์ PDF ไม่ได้ ใช้การพิมพ์ของเบราว์เซอร์แทนได้ (เลือกเครื่องพิมพ์ หรือ “บันทึกเป็น PDF”)","พิมพ์")) printPages(html); }
 }
 
+/* ---------- หนังสือราชการ: คำสั่งโรงเรียน, หนังสือขอซื้อแบบพิมพ์, ทะเบียนคุมแบบพิมพ์, จองเลขหนังสือส่ง ---------- */
+const crutTop = () => `${Math.min(3,Math.max(1,parseFloat(state.school.crutTop)||1.5))}cm`;
+const crutImg = () => state.school.logo ? `<img class="crut" src="${h(state.school.logo)}" alt="">` : `<div class="crut-ph">ตราครุฑ<br>สูง ${D(3)} ซม.</div>`;
+const schoolName = () => state.school.name || "(ชื่อสถานศึกษา)";
+const signer = () => `<div>(${h(state.school.director||"ชื่อเต็มผู้ลงนาม")})</div><div>${h(state.school.directorPos||("ผู้อำนวยการ"+schoolName()))}</div>`;
+async function saveRegister(rec){ const r={...rec, school:{...state.school}, createdAt:new Date().toISOString(), voided:false}; delete r.school.logo; await saveDoc("issued", newId(), r); return r; }
+const regOK = () => { if(state.readOnly){ toast("คุณมีสิทธิ์ดูอย่างเดียว"); return false; } if(loading()){ toast("รอให้ข้อมูลโหลดครบก่อน เพื่อไม่ให้เลขซ้ำ"); return false; }
+  if(!state.school.name || !state.school.director){ toast("กรอกชื่อสถานศึกษาและผู้ลงนามในแท็บ “ตั้งค่า” ก่อน"); return false; } return true; };
+const numIn = v => parseInt(thArabic(v||""))||0;
+// form bound to a plain object: inputs carry data-path="roles.0.name"
+function bindForm(root, obj, onChange){ const set=e=>{ const p=e.target.dataset.path; if(!p) return; const ks=p.split("."); let o=obj; ks.slice(0,-1).forEach(k=>o=o[k]); o[ks.at(-1)]=e.target.value; onChange(); };
+  root.addEventListener("input",set); root.addEventListener("change",set); }
+const fIn = (path,label,val,o={}) => `<label class="f ${o.cls||""}">${label}${o.area?`<textarea data-path="${path}" rows="${o.area}">${h(val||"")}</textarea>`:`<input data-path="${path}" type="${o.type||"text"}" value="${h(val||"")}" ${o.ph?`placeholder="${h(o.ph)}"`:""} ${o.num?'inputmode="numeric"':""}>`}</label>`;
+
+/* --- outgoing letter page (หนังสือภายนอก แบบที่ ๑) --- */
+function outLetterHTML(o){
+  const sc=state.school, school=schoolName();
+  const att=o.attach?.length ? `<div class="lrow"><div class="lk">สิ่งที่ส่งมาด้วย</div><div class="lv">${o.attach.length>1?o.attach.map((x,i)=>`<div>${D(i+1)}. ${h(D(x))}</div>`).join(""):h(D(o.attach[0]))}</div></div>` : "";
+  return `<div class="paper letter" style="--crut-top:${crutTop()}">${crutImg()}
+    <div class="hd"><div class="no">${h(D(o.number))}</div><div class="addr">${h(school)}<br>${h(D(sc.address||"(ที่ตั้งสถานศึกษา)")).replace(/\n/g,"<br>")}</div></div>
+    <div class="ldate">${h(thaiDateLetter(o.date))}</div>
+    <div class="lrow"><div class="lk">เรื่อง</div><div class="lv">${h(D(o.subject))}</div></div>
+    <div class="lrow"><div class="lk">เรียน</div><div class="lv">${h(o.to)}</div></div>${att}
+    <div class="body lbody">${o.body.join("")}<p>จึงเรียนมาเพื่อโปรดพิจารณาดำเนินการต่อไป</p></div>
+    <div class="lsign"><div>ขอแสดงความนับถือ</div><div class="lgap"></div>${signer()}</div>
+    <div class="lowner">งานทะเบียน ${h(school)}${sc.phone?`<br>โทร. ${h(D(sc.phone))}`:""}</div></div>`;
+}
+
+/* --- คำสั่งแต่งตั้งนายทะเบียนและคณะกรรมการวิชาการ (ใช้ประกอบระบบ ปพ.๓ ออนไลน์ของ สพฐ.) --- */
+const ORDER_PRE="ตามคำสั่งกระทรวงศึกษาธิการ ที่ สพฐ. ๖๑๘/๒๕๕๑ สั่ง ณ วันที่ ๓๐ กันยายน พ.ศ. ๒๕๕๒ เรื่อง การจัดทำแบบรายงานผู้สำเร็จการศึกษาตามหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน (ปพ.๓) พระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์ พ.ศ. ๒๕๔๔ และพระราชบัญญัติการปฏิบัติราชการทางอิเล็กทรอนิกส์ พ.ศ. ๒๕๖๕ จึงอาศัยอำนาจตามมาตรา ๓๙ แห่งพระราชบัญญัติระเบียบบริหารราชการกระทรวงศึกษาธิการ พ.ศ. ๒๕๔๖ และที่แก้ไขเพิ่มเติม แต่งตั้งนายทะเบียนและคณะกรรมการวิชาการโรงเรียน ดังนี้";
+const ORDER_CLOSE="ทั้งนี้ ให้คณะกรรมการที่ได้รับการแต่งตั้งตามคำสั่งนี้ ปฏิบัติหน้าที่ให้เป็นไปด้วยความเรียบร้อย บังเกิดผลดีต่อทางราชการ";
+const ORDER_ROLES=[
+  {title:"นายทะเบียน/ผู้เขียน/ผู้พิมพ์", duty:"จัดทำแบบรายงานผู้สำเร็จการศึกษาตามหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน (ปพ.๓) ผ่านระบบ ปพ.๓ ออนไลน์ ภายใน ๓๐ วัน นับจากวันอนุมัติผลการเรียนและสำเร็จการศึกษาแต่ละครั้ง โดยจัดทำข้อมูลให้ถูกต้องตรงกับเอกสารที่ทางราชการออกให้ สอดคล้องกับข้อมูลในระบบ SGS ระเบียนแสดงผลการเรียนหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน (ปพ.๑) และประกาศนียบัตรหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน (ปพ.๒) แล้วลงนามด้วยลายเซ็นอิเล็กทรอนิกส์ในระบบ ปพ.๓ ออนไลน์"},
+  {title:"ผู้ทาน/ผู้ตรวจ", duty:"ตรวจทาน/ตรวจสอบข้อมูลให้ถูกต้องตรงกับหลักฐานที่ทางราชการออกให้ แล้วลงนามด้วยลายเซ็นอิเล็กทรอนิกส์ในระบบ ปพ.๓ ออนไลน์"},
+  {title:"ผู้อนุมัติ", duty:"พิจารณาตรวจสอบความถูกต้องสมบูรณ์ของแบบรายงานผู้สำเร็จการศึกษาตามหลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน (ปพ.๓) แล้วลงนามด้วยลายเซ็นอิเล็กทรอนิกส์ในระบบ ปพ.๓ ออนไลน์"}];
+function initOrder(){ const sc=state.school, d=sc.orderDefaults||{}, teacher=sc.name?`ครู${sc.name}`:"";
+  const dflt=[{name:sc.registrar||"",pos:teacher},{name:"",pos:teacher},{name:sc.director||"",pos:sc.directorPos||""}];
+  return {seq:"", date:todayISO(), subject:d.subject||"แต่งตั้งนายทะเบียนและคณะกรรมการวิชาการโรงเรียน", pre:d.pre||ORDER_PRE, closing:d.closing||ORDER_CLOSE,
+    roles:ORDER_ROLES.map((r,i)=>({title:d.roles?.[i]?.title||r.title, name:d.roles?.[i]?.name??dflt[i].name, pos:d.roles?.[i]?.pos??dflt[i].pos, duty:d.roles?.[i]?.duty||r.duty}))}; }
+function orderHTML(o){
+  const roles=o.roles.filter(r=>String(r.name||"").trim());
+  return `<div class="paper order" style="--crut-top:${crutTop()}">${crutImg()}
+    <div class="ohd">คำสั่ง${h(schoolName())}<br>ที่ ${h(D(o.number||"......../......."))}<br>เรื่อง ${h(D(o.subject))}</div><div class="oline">${"-".repeat(40)}</div>
+    <div class="body" style="margin-top:4pt"><p>${h(D(o.pre))}</p>
+    ${roles.map((r,i)=>`<div class="osec">${D(i+1)}. ${h(r.title)}</div><div class="oname">${h(r.name)}&nbsp;&nbsp;${h(r.pos)}</div><p><u><b>มีหน้าที่</b></u> ${h(D(r.duty))}</p>`).join("")}
+    <p>${h(D(o.closing))}</p></div>
+    <div class="osign"><div>สั่ง ณ วันที่ ${h(thaiDateDoc(o.date))}</div><div class="lgap"></div>${signer()}</div></div>`;
+}
+
+/* --- หนังสือขอซื้อแบบพิมพ์หลักฐานการศึกษา: ถึงเขตพื้นที่ + ใบขออนุญาต + แบบลายมือชื่อ + ถึงองค์การค้าของ สกสค. --- */
+const PURCHASE_ITEMS=[
+  {k:"p1p",g:1,code:"ปพ.๑ : ป",name:"ระเบียนแสดงผลการเรียน ระดับประถมศึกษา (ปพ.๑ : ป)",unit:"เล่ม",per:"๕๐ แผ่น/เล่ม"},
+  {k:"p1b",g:1,code:"ปพ.๑ : บ",name:"ระเบียนแสดงผลการเรียน ระดับมัธยมศึกษาตอนต้น (ปพ.๑ : บ)",unit:"เล่ม",per:"๕๐ แผ่น/เล่ม"},
+  {k:"p1w",g:1,code:"ปพ.๑ : พ",name:"ระเบียนแสดงผลการเรียน ระดับมัธยมศึกษาตอนปลาย (ปพ.๑ : พ)",unit:"เล่ม",per:"๕๐ แผ่น/เล่ม"},
+  {k:"p2b",g:2,code:"ปพ.๒ : บ",name:"ประกาศนียบัตร การศึกษาภาคบังคับ จบ ม.๓ (ปพ.๒ : บ)",unit:"แผ่น",per:"๑ แผ่น/๑ คน"},
+  {k:"p2w",g:2,code:"ปพ.๒ : พ",name:"ประกาศนียบัตร การศึกษาขั้นพื้นฐาน จบ ม.๖ (ปพ.๒ : พ)",unit:"แผ่น",per:"๑ แผ่น/๑ คน"},
+  {k:"p3p",g:3,code:"ปพ.๓ : ป",name:"แบบรายงานผู้สำเร็จการศึกษา ระดับประถมศึกษา (ปพ.๓ : ป)",unit:"แผ่น",per:"๑ แผ่น/๒๔ คน"},
+  {k:"p3b",g:3,code:"ปพ.๓ : บ",name:"แบบรายงานผู้สำเร็จการศึกษา ระดับมัธยมศึกษาตอนต้น (ปพ.๓ : บ)",unit:"แผ่น",per:"๑ แผ่น/๒๔ คน"},
+  {k:"p3w",g:3,code:"ปพ.๓ : พ",name:"แบบรายงานผู้สำเร็จการศึกษา ระดับมัธยมศึกษาตอนปลาย (ปพ.๓ : พ)",unit:"แผ่น",per:"๑ แผ่น/๒๔ คน"}];
+const PURCHASE_GROUPS={1:"ระเบียนแสดงผลการเรียน (ปพ.๑)",2:"ประกาศนียบัตร (ปพ.๒)",3:"แบบรายงานผู้สำเร็จการศึกษา (ปพ.๓)"};
+function initPurchase(){ const d=state.school.purchaseDefaults||{}; return {seq:"", date:todayISO(), name:d.name||state.school.registrar||"", pos:d.pos||"", cid:"", qty:Object.fromEntries(PURCHASE_ITEMS.map(i=>[i.k,""]))}; }
+function purchaseHTML(o){
+  const sc=state.school, school=schoolName(), area=sc.affiliation||"สำนักงานเขตพื้นที่การศึกษา (กรอกสังกัดในแท็บตั้งค่า)";
+  const items=PURCHASE_ITEMS.filter(i=>numIn(o.qty[i.k])>0);
+  const subj=`ขอซื้อแบบพิมพ์หลักฐานการศึกษา ${items.map(i=>i.code).join(", ")||"..."}`;
+  const who=`${h(o.name||"..........")} ตำแหน่ง ${h(o.pos||"..........")}`;
+  const intro=`มีความประสงค์ขอซื้อแบบพิมพ์หลักฐานการศึกษา หลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน พุทธศักราช ๒๕๕๑ ชนิดใช้กับเครื่องคอมพิวเตอร์ เพื่อใช้ในการออกหลักฐานการศึกษาให้แก่นักเรียนในสถานศึกษา โดยมอบหมายให้ ${who} เป็นผู้ดำเนินการจัดซื้อ`;
+  const n1=o.seq?outNo(o.seq):"ที่ ........", n2=o.seq2?outNo(o.seq2):"ที่ ........";
+  const p1=outLetterHTML({number:n1, date:o.date, subject:subj, to:"ผู้อำนวยการ"+area,
+    attach:["ใบขออนุญาตสั่งซื้อแบบพิมพ์ จำนวน ๑ ฉบับ","สำเนาบัตรประจำตัวประชาชนผู้ดำเนินการจัดซื้อ จำนวน ๑ ฉบับ","แบบลายมือชื่อผู้ขอจัดซื้อแบบพิมพ์ จำนวน ๑ ฉบับ"],
+    body:[`<p>ด้วย${h(school)} ${intro} รายละเอียดตามสิ่งที่ส่งมาด้วย</p>`]});
+  let gi=0; const groups=[1,2,3].map(g=>{ gi++; const rows=PURCHASE_ITEMS.filter(i=>i.g===g).map((i,j)=>`<div class="fi"><span>${D(gi)}.${D(j+1)} ${h(i.name.replace(/^(ระเบียนแสดงผลการเรียน|ประกาศนียบัตร|แบบรายงานผู้สำเร็จการศึกษา)\s*/,""))}</span><span class="fq">จำนวน ${numIn(o.qty[i.k])?D(numIn(o.qty[i.k])):"–"} ${i.unit} (${i.per})</span></div>`).join("");
+    return `<div class="osec">${D(gi)}. ${PURCHASE_GROUPS[g]}</div><div class="flist">${rows}</div>`; }).join("");
+  const p2=`<div class="paper" style="padding-top:2cm"><div class="ftitle">ใบขออนุญาตสั่งซื้อแบบพิมพ์เอกสารหลักฐานการศึกษา (แบบควบคุม)</div>
+    <div class="body" style="margin-top:12pt"><p>ด้วย${h(school)} ขออนุญาตสั่งซื้อแบบพิมพ์หลักฐานการศึกษา โดย</p>
+    <div class="flist"><div>( &nbsp; ) ${h(area)} เป็นผู้ดำเนินการจัดซื้อ</div><div>( / ) มอบหมายให้ ${who} เป็นผู้ดำเนินการจัดซื้อ</div></div>
+    <div class="osec" style="margin-top:10pt">แบบพิมพ์หลักสูตรแกนกลางการศึกษาขั้นพื้นฐาน พ.ศ. ๒๕๕๑ (แบบคอมพิวเตอร์)</div>${groups}
+    <div class="fnote">หมายเหตุ แบบ ปพ.๓ เป็นแบบไม่ควบคุม แต่ต้องสั่งซื้อจากองค์การค้าของ สกสค.</div></div>
+    <div class="osign"><div>ลงชื่อ ..........................................</div>${signer()}</div></div>`;
+  const tbl=(name,pos,cid,tall)=>`<table class="ft"><thead><tr><th style="width:1.2cm">ที่</th><th>ชื่อ – สกุล</th><th style="width:4cm">ลายมือชื่อ</th><th>ตำแหน่ง / เลขประจำตัวประชาชน</th></tr></thead>
+    <tbody><tr><td style="text-align:center">${D(1)}.</td><td>${h(name||"")}</td><td style="height:${tall}"></td><td>${h(pos||"")}${cid?`<br>${h(D(cidFmt(cid)))}`:""}</td></tr></tbody></table>`;
+  const p3=`<div class="paper" style="padding-top:2cm"><div class="ftitle">แบบลายมือชื่อผู้ขอจัดซื้อแบบพิมพ์หลักฐานการศึกษา</div>
+    <div class="body" style="margin-top:12pt"><div>ลายมือชื่อผู้มาติดต่อขอซื้อและรับเอกสารจากองค์การค้าของ สกสค.</div>${tbl(o.name,o.pos,o.cid,"1.6cm")}
+    <p style="margin-top:10pt">ขอรับรองว่าเป็นลายมือชื่อของผู้ที่${h(school)} ได้มอบหมายให้มาติดต่อขอซื้อและรับเอกสาร</p></div>
+    <div class="osign" style="margin-top:12pt"><div>ลงชื่อ ..........................................</div>${signer()}</div>
+    <div class="body" style="margin-top:18pt"><div>ผู้มีอำนาจออกหนังสืออนุญาตของ${h(area)}</div>${tbl(sc.areaDirector||"","ผู้อำนวยการ"+area,"","1.6cm")}
+    <div class="fnote">หมายเหตุ ห้ามมิให้โรงเรียนมอบหมายบุคคลอื่นไปดำเนินการต่อนอกเหนือจากนี้</div></div></div>`;
+  const p4=outLetterHTML({number:n2, date:o.date, subject:subj, to:"ผู้อำนวยการองค์การค้าของ สกสค.", attach:["สำเนาบัตรประจำตัวประชาชนผู้ดำเนินการจัดซื้อ จำนวน ๑ ฉบับ"],
+    body:[`<p>ด้วย${h(school)}${sc.taxId?` เลขประจำตัวผู้เสียภาษี ${h(D(sc.taxId))}`:""} ${intro} ดังนี้</p>`,
+      `<div class="llist">${items.map((i,j)=>`<div class="li"><span class="ln">${D(j+1)}.</span><span class="lt">${h(i.name)} จำนวน ${D(numIn(o.qty[i.k]))} ${i.unit}</span></div>`).join("")||"<div>(ยังไม่ได้ระบุจำนวน)</div>"}</div>`]});
+  return p1+p2+p3+p4;
+}
+
+/* --- ทะเบียนคุมแบบพิมพ์: รับเข้าเป็นช่วงเลขที่ ใช้ออกทีละแผ่น --- */
+const FORM_TYPES=["ปพ.๑ : ป","ปพ.๑ : บ","ปพ.๑ : พ","ปพ.๒ : บ","ปพ.๒ : พ"];
+const USE_PURPOSES=["จบการศึกษา","ย้ายออก","ลาออก","ขอฉบับใหม่ (ชำรุด/สูญหาย)"];
+function stockOf(type){
+  const rs=state.forms.filter(f=>f.formType===type && !f.canceled);
+  const rec=rs.filter(f=>f.kind==="receive").sort((a,b)=>String(a.date).localeCompare(b.date));
+  const uses=rs.filter(f=>f.kind==="use").sort((a,b)=>(+a.serial)-(+b.serial));
+  const all=new Set(); rec.forEach(r=>{ for(let n=+r.start;n<=+r.end;n++) all.add(n); });
+  const used=new Set(uses.map(u=>+u.serial)); const free=[...all].filter(n=>!used.has(n)).sort((a,b)=>a-b);
+  return {rec, uses, all, free, used:uses.filter(u=>u.status!=="spoiled").length, spoiled:uses.filter(u=>u.status==="spoiled").length};
+}
+function lowStockHTML(){ const lim=numIn(state.school.formLow)||10;
+  const low=FORM_TYPES.map(t=>[t,stockOf(t)]).filter(([,x])=>x.all.size && x.free.length<=lim);
+  return low.length ? `<div class="warnline" style="margin-bottom:20px">แบบพิมพ์ใกล้หมด: ${low.map(([t,x])=>`${h(t)} เหลือ ${D(x.free.length)} แผ่น`).join(", ")} — ทำหนังสือขอซื้อได้ที่แท็บ “หนังสือราชการ”</div>` : ""; }
+async function cancelStock(id){ const f=state.forms.find(x=>x._id===id); if(!f) return;
+  if(!await confirmBox("ยกเลิกรายการ",`ยกเลิกรายการ${f.kind==="receive"?`รับเข้าเลขที่ ${D(f.start)}–${D(f.end)}`:`เลขที่ ${D(f.serial)}`}? รายการยังอยู่ในฐานข้อมูลโดยมีเครื่องหมายยกเลิก`,"ยกเลิกรายการ")) return;
+  try{ const b={...f,canceled:true,canceledAt:new Date().toISOString()}; delete b._id; await saveDoc("forms",id,b); toast("ยกเลิกแล้ว"); }catch(e){ writeErr(e); } }
+
+/* --- the tab --- */
+const LETTER_KINDS={order:"คำสั่งแต่งตั้งนายทะเบียนและคณะกรรมการวิชาการ",purchase:"หนังสือขอซื้อแบบพิมพ์หลักฐานการศึกษา",stock:"ทะเบียนคุมแบบพิมพ์ (ปพ.๑ / ปพ.๒)"};
+const lt={kind:"order", stock:"ปพ.๑ : ป"}; let od=null, pd=null;
+function renderLetters(){
+  const el=$("#v-letters");
+  if(!el.dataset.built){ el.dataset.built="1";
+    el.innerHTML=`<h2>หนังสือราชการและแบบพิมพ์</h2><p class="sub">ออกคำสั่งและหนังสือภายนอกของงานทะเบียน ระบบลงทะเบียนคุมและรันเลขให้ (แยกชุดเลขคำสั่ง เลขหนังสือส่ง และเลขหนังสือรับรอง)</p>
+      <div class="toolbar"><select id="ltKind" aria-label="ประเภท">${Object.entries(LETTER_KINDS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></div><div id="ltBody"></div>`;
+    $("#ltKind").addEventListener("change",e=>{ lt.kind=e.target.value; drawLetters(); }); drawLetters(); return; }
+  if(lt.kind==="stock") drawStock(); else drawLetterPreview();
+}
+function drawLetters(){
+  const b=$("#ltBody");
+  if(lt.kind==="stock"){ b.innerHTML=`<div id="stkBox"></div>`; drawStock(); return; }
+  const isOrder=lt.kind==="order"; if(isOrder && !od) od=initOrder(); if(!isOrder && !pd) pd=initPurchase(); const o=isOrder?od:pd;
+  const form = isOrder
+    ? `${fIn("seq","เลขที่คำสั่ง",o.seq,{num:1,ph:"อัตโนมัติ"})}<span class="hint" style="margin-top:-10px">ถ้าโรงเรียนใช้ทะเบียนคำสั่งร่วมกับงานอื่น ให้ใส่เลขถัดไปจากทะเบียนนั้น</span>
+      ${fIn("date","สั่ง ณ วันที่",o.date,{type:"date"})}${fIn("subject","เรื่อง",o.subject)}${fIn("pre","ข้อความอ้างอิงอำนาจ",o.pre,{area:6})}
+      ${o.roles.map((r,i)=>`<fieldset style="margin:0"><legend>${D(i+1)}. ${h(r.title)}</legend><div style="display:grid;gap:8px">${fIn(`roles.${i}.title`,"ตำแหน่งในคณะกรรมการ",r.title)}${fIn(`roles.${i}.name`,"ชื่อ–สกุล (เว้นว่างถ้าไม่ใช้ข้อนี้)",r.name)}${fIn(`roles.${i}.pos`,"ตำแหน่ง",r.pos)}${fIn(`roles.${i}.duty`,"หน้าที่",r.duty,{area:4})}</div></fieldset>`).join("")}
+      ${fIn("closing","ข้อความปิดท้าย",o.closing,{area:2})}`
+    : `${fIn("seq","เลขที่หนังสือฉบับแรก (ฉบับที่สองใช้เลขถัดไป)",o.seq,{num:1,ph:"อัตโนมัติ"})}${fIn("date","ลงวันที่",o.date,{type:"date"})}
+      <fieldset style="margin:0"><legend>ผู้ดำเนินการจัดซื้อ</legend><div style="display:grid;gap:8px">${fIn("name","ชื่อ–สกุล",o.name)}${fIn("pos","ตำแหน่ง",o.pos,{ph:"เช่น ครูผู้ช่วย"})}${fIn("cid","เลขประจำตัวประชาชน (พิมพ์ในแบบลายมือชื่อ ไม่เก็บในฐานข้อมูล)",o.cid,{num:1})}</div></fieldset>
+      <fieldset style="margin:0"><legend>จำนวนที่ขอซื้อ</legend><div style="display:grid;gap:8px">${PURCHASE_ITEMS.map(i=>fIn(`qty.${i.k}`,`${i.code} (${i.unit}, ${i.per})`,o.qty[i.k],{num:1,ph:"0"})).join("")}</div></fieldset>`;
+  b.innerHTML=`<div class="issue"><div class="panel" style="display:grid;gap:14px" id="ltForm">${form}<div id="ltWarn"></div>
+    <div class="row"><button class="btn primary" id="ltIssue">ออกเลขและบันทึก</button><button class="btn" id="ltDraft">ดาวน์โหลดร่าง (PDF)</button><button class="btn" id="ltPrint">พิมพ์ร่าง</button></div></div>
+    <div class="panel" style="padding:12px"><div class="paper-wrap" id="ltWrap"><div class="paper-scale" id="ltScale"></div></div></div></div>`;
+  bindForm($("#ltForm"), o, drawLetterPreview);
+  $("#ltIssue").addEventListener("click", isOrder?issueOrder:issuePurchase);
+  $("#ltDraft").addEventListener("click",()=>exportPdf(letterDraft(), `ร่าง-${LETTER_KINDS[lt.kind]}.pdf`));
+  $("#ltPrint").addEventListener("click",()=>printPages(letterDraft()));
+  new ResizeObserver(()=>fitIn($("#ltWrap"),$("#ltScale"))).observe($("#ltWrap")); drawLetterPreview();
+}
+function letterNums(){ const isOrder=lt.kind==="order", o=isOrder?od:pd, y=docYear(o.date), ser=isOrder?"order":"out"; const seq=numIn(o.seq)||nextSeq(y,ser); return {y,ser,seq,seq2:isOrder?0:seq+1}; }
+function letterDraft(){ const n=letterNums(); return lt.kind==="order" ? orderHTML({...od, number:`${n.seq}/${n.y}`}) : purchaseHTML({...pd, seq:n.seq, seq2:n.seq2}); }
+function drawLetterPreview(){ const sc=$("#ltScale"); if(!sc) return; sc.innerHTML=letterDraft(); fitIn($("#ltWrap"),sc);
+  const n=letterNums(), warns=[];
+  if(seqTaken(n.y,n.ser,n.seq) || (n.seq2 && seqTaken(n.y,n.ser,n.seq2))) warns.push(`เลขที่ ${D(n.seq)}${n.seq2?`–${D(n.seq2)}`:""} ถูกใช้ไปแล้วในปี ${D(n.y)} เปลี่ยนเลขหรือเว้นว่างให้ระบบรันเลขเอง`);
+  if(!state.school.name || !state.school.director) warns.push("ยังไม่ได้กรอกชื่อสถานศึกษาหรือผู้ลงนามในแท็บ “ตั้งค่า”");
+  if(lt.kind==="purchase"){ if(!outPrefix().trim()) warns.push("ยังไม่ได้กรอกรหัสส่วนราชการ (เช่น ศธ ๐๔๐๘๗.๐๖๗/) ในแท็บ “ตั้งค่า”"); if(!state.school.affiliation) warns.push("ยังไม่ได้กรอก “สังกัด” ในแท็บ “ตั้งค่า” หนังสือฉบับแรกต้องเรียนถึงผู้อำนวยการเขตพื้นที่"); if(!state.school.areaDirector) warns.push("ยังไม่ได้กรอกชื่อผู้อำนวยการเขตพื้นที่ในแท็บ “ตั้งค่า” (ใช้ในแบบลายมือชื่อ)"); }
+  [...sc.children].forEach((pg,i)=>{ if(pg.scrollHeight>pg.clientHeight+2) warns.push(`หน้า ${D(i+1)} เนื้อหายาวเกินหนึ่งหน้า ตัดข้อความให้สั้นลง`); });
+  $("#ltWarn").innerHTML=warns.map(x=>`<div class="warnline">${h(x)}</div>`).join('<div style="height:6px"></div>'); }
+async function issueOrder(){ if(!regOK()) return; const n=letterNums();
+  if(seqTaken(n.y,"order",n.seq)){ toast(`เลขคำสั่ง ${D(n.seq)}/${D(n.y)} ถูกใช้แล้ว`); return; }
+  if(!od.roles.some(r=>String(r.name).trim())){ toast("กรอกชื่อผู้ได้รับแต่งตั้งอย่างน้อย ๑ คน"); return; }
+  const number=`${n.seq}/${n.y}`;
+  if(!await confirmBox("ออกเลขคำสั่ง",`<dl class="kv"><dt>คำสั่งที่</dt><dd>${h(D(number))}</dd><dt>เรื่อง</dt><dd>${h(od.subject)}</dd><dt>สั่ง ณ วันที่</dt><dd>${h(thaiDate(od.date))}</dd></dl>`,"ออกเลขและบันทึก")) return;
+  const data={...od, roles:od.roles.map(r=>({...r})), number};
+  try{ const rec=await saveRegister({type:"order", series:"order", seq:n.seq, year:n.y, number:`คำสั่งที่ ${number}`, date:od.date, studentName:od.subject, purpose:"", data});
+    await saveSchool({...state.school, orderDefaults:{subject:od.subject, pre:od.pre, closing:od.closing, roles:od.roles.map(r=>({...r}))}});
+    od.seq=""; toast(`ออกคำสั่งที่ ${D(number)} แล้ว`); drawLetters(); await exportPdf(orderHTML(data), `คำสั่งที่${number.replace("/","-")}_${od.subject}.pdf`);
+  }catch(e){ writeErr(e); } }
+async function issuePurchase(){ if(!regOK()) return; const n=letterNums();
+  if(!PURCHASE_ITEMS.some(i=>numIn(pd.qty[i.k])>0)){ toast("ระบุจำนวนแบบพิมพ์ที่ขอซื้ออย่างน้อย ๑ รายการ"); return; }
+  if(!String(pd.name).trim()){ toast("กรอกชื่อผู้ดำเนินการจัดซื้อ"); return; }
+  if(seqTaken(n.y,"out",n.seq)||seqTaken(n.y,"out",n.seq2)){ toast(`เลขที่ ${D(n.seq)}–${D(n.seq2)} ถูกใช้แล้ว`); return; }
+  if(!await confirmBox("ออกเลขหนังสือ",`หนังสือ ๒ ฉบับ ใช้เลขหนังสือส่ง <b>${h(D(outNo(n.seq)))}</b> (ถึงเขตพื้นที่) และ <b>${h(D(outNo(n.seq2)))}</b> (ถึงองค์การค้าของ สกสค.) พร้อมใบขออนุญาตและแบบลายมือชื่อ รวม ๔ หน้า`,"ออกเลขและบันทึก")) return;
+  const full={...pd, qty:{...pd.qty}, seq:n.seq, seq2:n.seq2}; const data={...full, cid:""};
+  const items=PURCHASE_ITEMS.filter(i=>numIn(pd.qty[i.k])>0).map(i=>`${i.code} ${numIn(pd.qty[i.k])} ${i.unit}`).join(", ");
+  try{ await saveRegister({type:"purchase", series:"out", seq:n.seq, seq2:n.seq2, year:n.y, number:`${outNo(n.seq)}–${n.seq2}`, date:pd.date, studentName:`ขอซื้อแบบพิมพ์ ${items}`, purpose:"เขตพื้นที่ / องค์การค้าของ สกสค.", data});
+    await saveSchool({...state.school, purchaseDefaults:{name:pd.name, pos:pd.pos}});
+    toast("ออกเลขหนังสือแล้ว"); pd.seq=""; drawLetters(); await exportPdf(purchaseHTML(full), `ขอซื้อแบบพิมพ์_${todayISO()}.pdf`);
+  }catch(e){ writeErr(e); } }
+function openReserve(){ if(!regOK()) return; const r={date:todayISO(), subject:"", to:"", note:"", seq:""};
+  toolDialog("จองเลขหนังสือส่ง", `<p class="sub" style="margin:0 0 12px">ใช้กับหนังสือภายนอกที่พิมพ์จากโปรแกรมอื่น เลขจะต่อจากหนังสือส่งตัวและหนังสือขอซื้อแบบพิมพ์ในชุดเดียวกัน</p>
+    <div class="fgrid" id="rsForm">${fIn("date","ลงวันที่",r.date,{type:"date"})}${fIn("seq","เลขที่",r.seq,{num:1,ph:"อัตโนมัติ"})}${fIn("subject","เรื่อง *",r.subject,{cls:"wide"})}${fIn("to","เรียน",r.to,{cls:"wide"})}${fIn("note","หมายเหตุ",r.note,{cls:"wide"})}</div><p class="hint" id="rsNo"></p>`,
+    `<button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn primary" id="rsGo">จองเลข</button>`);
+  const show=()=>{ const y=docYear(r.date), n=numIn(r.seq)||nextSeq(y,"out"); $("#rsNo").textContent=`จะได้เลข ${D(outNo(n))}${seqTaken(y,"out",n)?" — เลขนี้ถูกใช้แล้ว":""}`; };
+  bindForm($("#rsForm"), r, show); show();
+  $("#rsGo").addEventListener("click", async()=>{ const y=docYear(r.date), n=numIn(r.seq)||nextSeq(y,"out");
+    if(!r.subject.trim()){ toast("กรอกเรื่อง"); return; } if(seqTaken(y,"out",n)){ toast("เลขนี้ถูกใช้แล้ว"); return; }
+    try{ await saveRegister({type:"outgoing", series:"out", seq:n, year:y, number:outNo(n), date:r.date, studentName:r.subject, purpose:r.to, note:r.note}); $("#dlgTool").close(); toast(`จองเลข ${D(outNo(n))} แล้ว`); }catch(e){ writeErr(e); } }); }
+function drawStock(){
+  const box=$("#stkBox"); if(!box) return; const t=lt.stock, x=stockOf(t), lim=numIn(state.school.formLow)||10;
+  box.innerHTML=`<div class="toolbar"><select id="stkType" aria-label="แบบพิมพ์">${FORM_TYPES.map(f=>`<option ${f===t?"selected":""}>${f}</option>`).join("")}</select>
+    <button class="btn" id="stkRecv">+ รับแบบพิมพ์เข้า</button><button class="btn primary" id="stkUse" ${x.free.length?"":"disabled"}>บันทึกการใช้</button><button class="btn" id="stkSpoil" ${x.free.length?"":"disabled"}>บันทึกแผ่นชำรุด</button><button class="btn" id="stkPrint">พิมพ์ทะเบียนคุม</button><button class="btn" id="stkCsv">ส่งออก CSV</button></div>
+    <div class="stats"><div class="stat"><b>${D(x.all.size)}</b><span>รับเข้าทั้งหมด (แผ่น)</span></div><div class="stat"><b>${D(x.used)}</b><span>ออกให้นักเรียน</span></div><div class="stat"><b>${D(x.spoiled)}</b><span>ชำรุด/เสีย</span></div><div class="stat"><b>${D(x.free.length)}</b><span>คงเหลือ${x.free.length?` · เลขถัดไป ${D(x.free[0])}`:""}</span></div></div>
+    ${x.all.size && x.free.length<=lim?`<div class="warnline" style="margin-bottom:16px">${h(t)} เหลือ ${D(x.free.length)} แผ่น ควรทำหนังสือขอซื้อ</div>`:""}
+    <div class="panel" style="margin-bottom:16px"><h3>รายการใช้แบบพิมพ์</h3>${x.uses.length?`<div class="tablebox"><table><thead><tr><th>เลขที่</th><th>วันที่</th><th>นักเรียน</th><th>ชั้น</th><th>ใช้เพื่อ / หมายเหตุ</th><th></th></tr></thead><tbody>${x.uses.map(u=>`<tr><td class="mono">${h(D(u.serial))}</td><td>${h(thaiDateShort(u.date))}</td><td>${u.status==="spoiled"?'<span class="chip s-quit">ชำรุด</span>':h(u.studentName||"")}</td><td>${h(u.grade||"")}</td><td>${h([u.purpose,u.note].filter(Boolean).join(" · "))}</td><td><button class="btn sm danger" data-act="stk-cancel" data-id="${h(u._id)}">ยกเลิกรายการ</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">ยังไม่มีการใช้ ${h(t)}</div>`}</div>
+    <div class="panel"><h3>รายการรับแบบพิมพ์เข้า</h3>${x.rec.length?`<div class="tablebox"><table><thead><tr><th>วันที่รับ</th><th>รับจาก</th><th>เล่มที่</th><th>เลขที่</th><th class="num">จำนวน</th><th></th></tr></thead><tbody>${x.rec.map(r=>`<tr><td>${h(thaiDateShort(r.date))}</td><td>${h(r.source||"")}</td><td>${h(D(r.book||"–"))}</td><td class="mono">${h(D(r.start))}–${h(D(r.end))}</td><td class="num">${D(r.end-r.start+1)}</td><td><button class="btn sm danger" data-act="stk-cancel" data-id="${h(r._id)}">ยกเลิกรายการ</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">ยังไม่ได้บันทึกการรับ ${h(t)} กด “รับแบบพิมพ์เข้า” แล้วกรอกเลขที่แผ่นแรกและแผ่นสุดท้าย</div>`}</div>`;
+  $("#stkType").addEventListener("change",e=>{ lt.stock=e.target.value; drawStock(); });
+  $("#stkRecv").addEventListener("click",()=>stockDialog("receive")); $("#stkUse").addEventListener("click",()=>stockDialog("use")); $("#stkSpoil").addEventListener("click",()=>stockDialog("spoiled"));
+  const rows=()=>x.uses.map(u=>[u.serial,thaiDateShort(u.date),u.status==="spoiled"?"ชำรุด":u.studentName,u.studentId,u.grade,[u.purpose,u.note].filter(Boolean).join(" ")]);
+  $("#stkCsv").addEventListener("click",()=>saveText(`ทะเบียนคุม_${t.replace(/\s/g,"")}_${todayISO()}.csv`, [["เลขที่","วันที่","ชื่อ–สกุล","เลขประจำตัว","ชั้น","ใช้เพื่อ/หมายเหตุ"],...rows()].map(r=>r.map(csvCell).join(",")).join("\r\n")));
+  $("#stkPrint").addEventListener("click",()=>printPages(`<div class="sheet">${sheetHead(`ทะเบียนคุมแบบพิมพ์ ${t}`, `รับเข้า ${D(x.all.size)} แผ่น · ใช้ ${D(x.used)} · ชำรุด ${D(x.spoiled)} · คงเหลือ ${D(x.free.length)} แผ่น ณ วันที่ ${h(thaiDate(todayISO()))}`)}
+    <table><thead><tr><th>เลขที่</th><th>วันที่</th><th>ชื่อ – สกุล</th><th>เลขประจำตัว</th><th>ชั้น</th><th>ใช้เพื่อ / หมายเหตุ</th><th>ลายมือชื่อผู้รับ</th></tr></thead><tbody>${rows().map(r=>`<tr><td class="c">${h(D(r[0]))}</td><td class="c">${h(D(r[1]))}</td><td>${h(r[2]||"")}</td><td class="c">${h(D(r[3]||""))}</td><td class="c">${h(r[4]||"")}</td><td class="wrap">${h(r[5])}</td><td style="width:3cm"></td></tr>`).join("")||`<tr><td colspan="7" class="c">ยังไม่มีรายการ</td></tr>`}</tbody></table>${signs("นายทะเบียน","ผู้อำนวยการ")}</div>`));
+}
+function stockDialog(kind){ if(state.readOnly){ toast("คุณมีสิทธิ์ดูอย่างเดียว"); return; } const t=lt.stock, x=stockOf(t);
+  const f={date:todayISO(), source:"องค์การค้าของ สกสค.", book:"", start:"", end:"", serial:String(x.free[0]||""), student:"", purpose:"จบการศึกษา", note:""};
+  const opts=[...state.students].sort((a,b)=>String(a.studentId).localeCompare(String(b.studentId),"th",{numeric:true})).map(s=>`<option value="${h(s.studentId)} · ${h(fullName(s))}">`).join("");
+  const body = kind==="receive"
+    ? `${fIn("date","วันที่รับ",f.date,{type:"date"})}${fIn("source","รับจาก",f.source)}${fIn("book","เล่มที่",f.book)}${fIn("start","เลขที่แผ่นแรก *",f.start,{num:1})}${fIn("end","เลขที่แผ่นสุดท้าย *",f.end,{num:1})}${fIn("note","หมายเหตุ",f.note,{cls:"wide"})}`
+    : `${fIn("serial","เลขที่แบบพิมพ์ *",f.serial,{num:1})}${fIn("date","วันที่",f.date,{type:"date"})}
+       ${kind==="use"?`<label class="f wide">นักเรียน * (พิมพ์เลขประจำตัวหรือชื่อ)<input data-path="student" list="stkStudents"><datalist id="stkStudents">${opts}</datalist></label><label class="f">ใช้เพื่อ<input data-path="purpose" list="stkPurposes" value="${h(f.purpose)}"><datalist id="stkPurposes">${USE_PURPOSES.map(p=>`<option>${p}</option>`).join("")}</datalist></label>`:""}
+       ${fIn("note",kind==="use"?"หมายเหตุ":"สาเหตุที่ชำรุด *",f.note,{cls:"wide"})}`;
+  toolDialog(kind==="receive"?`รับแบบพิมพ์ ${t} เข้า`:kind==="use"?`บันทึกการใช้ ${t}`:`บันทึกแผ่นชำรุด ${t}`, `<div class="fgrid" id="skForm">${body}</div>`,
+    `<button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn primary" id="skGo">บันทึก</button>`);
+  bindForm($("#skForm"), f, ()=>{});
+  $("#skGo").addEventListener("click", async()=>{ const now=new Date().toISOString(); let rec;
+    if(kind==="receive"){ const a=numIn(f.start), b=numIn(f.end);
+      if(!a || !b || b<a){ toast("กรอกเลขที่แผ่นแรกและแผ่นสุดท้ายให้ถูกต้อง"); return; } if(b-a>=5000){ toast("ช่วงเลขกว้างเกินไป แยกบันทึกเป็นหลายรายการ"); return; }
+      for(let n=a;n<=b;n++) if(x.all.has(n)){ toast(`เลขที่ ${n} รับเข้าไว้แล้ว`); return; }
+      rec={kind:"receive", formType:t, date:f.date, source:f.source, book:f.book, start:a, end:b, note:f.note, createdAt:now};
+    } else { const n=numIn(f.serial);
+      if(!x.all.has(n)){ toast(`เลขที่ ${n} ยังไม่ได้รับเข้าในทะเบียน`); return; } if(!x.free.includes(n)){ toast(`เลขที่ ${n} ใช้ไปแล้ว`); return; }
+      if(kind==="use"){ const sid=String(f.student).split("·")[0].trim(); const s=state.students.find(z=>String(z.studentId)===sid);
+        if(!s){ toast("เลือกนักเรียนจากรายการ"); return; }
+        rec={kind:"use", status:"used", formType:t, serial:n, date:f.date, studentRef:s._id, studentId:s.studentId, studentName:fullName(s), grade:`${s.grade||""}${s.room?"/"+s.room:""}`, purpose:f.purpose, note:f.note, createdAt:now};
+      } else { if(!f.note.trim()){ toast("กรอกสาเหตุที่ชำรุด"); return; } rec={kind:"use", status:"spoiled", formType:t, serial:n, date:f.date, note:f.note, createdAt:now}; } }
+    try{ await saveDoc("forms", newId(), rec); $("#dlgTool").close(); toast("บันทึกแล้ว"); }catch(e){ writeErr(e); } });
+}
+
 /* ---------- reports ---------- */
-const REPORTS={roster:"รายชื่อนักเรียนรายห้อง / แบบเช็กชื่อ",check:"ตรวจข้อมูลไม่ครบก่อนส่ง DMC",stats:"สรุปจำนวนนักเรียน (ชั้น อายุ เพศ ความด้อยโอกาส)",grads:"รายชื่อผู้สำเร็จการศึกษา (ประกอบ ปพ.๓)",movement:"สมุดคุมการรับย้ายเข้าและจำหน่าย",cards:"บัตรประจำตัวนักเรียน"};
+const REPORTS={roster:"รายชื่อนักเรียนรายห้อง / แบบเช็กชื่อ",check:"ตรวจข้อมูลไม่ครบก่อนส่ง DMC",stats:"สรุปจำนวนนักเรียน (ชั้น อายุ เพศ ความด้อยโอกาส)",grads:"รายชื่อผู้สำเร็จการศึกษา",movement:"สมุดคุมการรับย้ายเข้าและจำหน่าย",cards:"บัตรประจำตัวนักเรียน"};
 const rp={kind:"roster", cls:"", blanks:"8", title:"บัญชีรายชื่อนักเรียน", year:"", grade:"", ref:todayISO()};
 const classesOf = list => [...new Set(list.map(s=>`${s.grade||""}|${s.room||""}`))].filter(k=>!k.startsWith("|")).sort((a,b)=>{ const [ga,ra]=a.split("|"),[gb,rb]=b.split("|"); return GRADES.indexOf(ga)-GRADES.indexOf(gb) || ra.localeCompare(rb,"th",{numeric:true}); });
 const clsName = k => { const [g,r]=k.split("|"); return r ? `${gradeFull(g)}/${D(r)}` : gradeFull(g); };
@@ -905,7 +1168,7 @@ function buildReport(){
     const all=state.students.filter(s=>s.status==="grad"); const g=rp.grade || GRADES.filter(x=>all.some(s=>s.grade===x)).pop() || "ป.6";
     const list=all.filter(s=>s.grade===g && inAcadYear(s.leaveDate,year)).sort(byGenderId); const noDate=all.filter(s=>s.grade===g && !s.leaveDate).length;
     const csv=[["ที่","เลขประจำตัว","เลขประจำตัวประชาชน","ชื่อ–สกุล","วันเกิด","วันที่สำเร็จการศึกษา"]].concat(list.map((s,i)=>[i+1,s.studentId,s.citizenId,fullName(s),thaiDateShort(s.birthDate),thaiDateShort(s.leaveDate)]));
-    return {csv, note: noDate?`มีผู้สำเร็จการศึกษาชั้น ${g} อีก ${D(noDate)} คนที่ยังไม่มีวันที่จำหน่าย จึงไม่อยู่ในรายชื่อ`:"", html:`<div class="sheet">${sheetHead("รายชื่อผู้สำเร็จการศึกษา", `${h(gradeGrad(g))} ${yr}<br><small>ใช้ประกอบการจัดทำรายงานผลการเรียนของผู้สำเร็จการศึกษา (ปพ.๓)</small>`)}
+    return {csv, note: noDate?`มีผู้สำเร็จการศึกษาชั้น ${g} อีก ${D(noDate)} คนที่ยังไม่มีวันที่จำหน่าย จึงไม่อยู่ในรายชื่อ`:"", html:`<div class="sheet">${sheetHead("รายชื่อผู้สำเร็จการศึกษา", `${h(gradeGrad(g))} ${yr}`)}
       <table><thead><tr><th>ที่</th><th>เลขประจำตัว</th><th>เลขประจำตัวประชาชน</th><th>ชื่อ – สกุล</th><th>วันเกิด</th><th>วันที่จบ</th></tr></thead><tbody>${list.map((s,i)=>`<tr><td class="c">${D(i+1)}</td><td class="c">${h(D(s.studentId||""))}</td><td class="c">${h(D(cidFmt(s.citizenId)))}</td><td>${h(fullName(s))}</td><td class="c">${h(D(thaiDateShort(s.birthDate)))}</td><td class="c">${h(D(thaiDateShort(s.leaveDate)))}</td></tr>`).join("") || `<tr><td colspan="6" class="c">ไม่มีผู้สำเร็จการศึกษาชั้นนี้ในปีการศึกษาที่เลือก</td></tr>`}</tbody></table>
       <div class="foot">${gcount(list)}</div>${signs("นายทะเบียน","ผู้อำนวยการ")}</div>`};
   }
@@ -961,8 +1224,8 @@ const lf={q:"",type:""};
 function renderLog(){
   const el=$("#v-log");
   if(!el.dataset.built){ el.dataset.built="1";
-    el.innerHTML=`<div class="row spread" style="margin-bottom:4px"><h2>ทะเบียนคุมเอกสาร</h2><button class="btn" data-act="export-log">ส่งออก CSV</button></div><p class="sub" id="lgCount"></p><div id="lgDup"></div>
-    <div class="toolbar"><input type="search" id="lgQ" placeholder="ค้นหาเลขที่ ชื่อนักเรียน หรือวัตถุประสงค์" aria-label="ค้นหาเอกสาร"><select id="lgType" aria-label="ประเภท"><option value="">ทุกประเภท</option>${Object.entries(DOCTYPES).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join("")}</select></div><div id="lgTable"></div>`;
+    el.innerHTML=`<div class="row spread" style="margin-bottom:4px"><h2>ทะเบียนคุมเอกสาร</h2><div class="row"><button class="btn" data-act="reserve-out">จองเลขหนังสือส่ง</button><button class="btn" data-act="export-log">ส่งออก CSV</button></div></div><p class="sub" id="lgCount"></p><div id="lgDup"></div>
+    <div class="toolbar"><input type="search" id="lgQ" placeholder="ค้นหาเลขที่ ชื่อนักเรียน หรือวัตถุประสงค์" aria-label="ค้นหาเอกสาร"><select id="lgType" aria-label="ประเภท"><option value="">ทุกประเภท</option>${Object.entries({...DOCTYPES,...OTHER_TYPES}).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join("")}</select></div><div id="lgTable"></div>`;
     $("#lgQ").addEventListener("input",e=>{lf.q=e.target.value;drawLog();}); $("#lgType").addEventListener("change",e=>{lf.type=e.target.value;drawLog();}); }
   drawLog();
 }
@@ -974,8 +1237,8 @@ function drawLog(){
   $("#lgDup").innerHTML = dups.length ? `<div class="warnline" style="margin-bottom:12px">พบเลขที่หนังสือซ้ำ: ${h(dups.map(D).join(", "))} ให้ยกเลิกฉบับที่ออกทีหลังแล้วออกเลขใหม่</div>` : "";
   $("#lgTable").innerHTML = !state.issued.length ? `<div class="panel empty"><b>ยังไม่มีเอกสารในทะเบียนคุม</b>ทุกฉบับที่ออกจากแท็บ “ออกเอกสาร” จะถูกบันทึกที่นี่พร้อมเลขที่ ใช้พิมพ์ซ้ำหรือยกเลิกเลขได้</div>`
    : !list.length ? `<div class="panel empty"><b>ไม่พบเอกสารตามเงื่อนไข</b></div>`
-   : `<div class="tablebox"><table><thead><tr><th>เลขที่</th><th>ลงวันที่</th><th>ประเภท</th><th>นักเรียน</th><th>ชั้น</th><th>ใช้เพื่อ</th><th></th></tr></thead><tbody>${list.map(d=>`<tr${d.voided?' style="opacity:.55"':""}><td class="mono">${h(D(d.number))}${d.voided?` <span class="chip s-quit">ยกเลิก</span>${d.voidReason?`<br><small class="hint">${h(d.voidReason)}</small>`:""}`:""}</td><td>${h(thaiDateShort(d.date))}</td><td>${h(DOCTYPES[d.type]?.name||d.type)}</td><td>${h(d.studentName)}</td><td>${h(d.grade)}${d.room?"/"+h(d.room):""}</td><td>${h(d.purpose||"–")}</td>
-     <td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn sm" data-act="reprint" data-id="${h(d._id)}" ${d.voided?"disabled":""}>ดาวน์โหลด PDF</button><button class="btn sm" data-act="print-rec" data-id="${h(d._id)}" ${d.voided?"disabled":""}>พิมพ์</button>${d.voided?"":`<button class="btn sm danger" data-act="void" data-id="${h(d._id)}">ยกเลิกเลข</button>`}</div></td></tr>`).join("")}</tbody></table></div>`;
+   : `<div class="tablebox"><table><thead><tr><th>เลขที่</th><th>ลงวันที่</th><th>ประเภท</th><th>นักเรียน / เรื่อง</th><th>ชั้น</th><th>ใช้เพื่อ / เรียน</th><th></th></tr></thead><tbody>${list.map(d=>`<tr${d.voided?' style="opacity:.55"':""}><td class="mono">${h(D(d.number))}${d.voided?` <span class="chip s-quit">ยกเลิก</span>${d.voidReason?`<br><small class="hint">${h(d.voidReason)}</small>`:""}`:""}</td><td>${h(thaiDateShort(d.date))}</td><td>${h(typeName(d.type))}</td><td>${h(d.studentName)}</td><td>${h(d.grade)}${d.room?"/"+h(d.room):""}</td><td>${h(d.purpose||"–")}</td>
+     <td><div class="row" style="gap:6px;flex-wrap:nowrap">${d.type==="outgoing"?"":`<button class="btn sm" data-act="reprint" data-id="${h(d._id)}" ${d.voided?"disabled":""}>ดาวน์โหลด PDF</button><button class="btn sm" data-act="print-rec" data-id="${h(d._id)}" ${d.voided?"disabled":""}>พิมพ์</button>`}${d.voided?"":`<button class="btn sm danger" data-act="void" data-id="${h(d._id)}">ยกเลิกเลข</button>`}</div></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 /* ---------- settings ---------- */
@@ -987,6 +1250,7 @@ function renderSettings(){
     ${F("name","ชื่อสถานศึกษา *","โรงเรียน…")}${F("affiliation","สังกัด","สำนักงานเขตพื้นที่การศึกษา…")}
     <label class="f wide" for="cf-address">ที่อยู่ (แสดงมุมขวาบนของหนังสือ)<textarea id="cf-address" name="address" placeholder="เลขที่ ถนน ตำบล&#10;อำเภอ จังหวัด รหัสไปรษณีย์">${h(s.address||"")}</textarea></label>
     ${F("phone","โทรศัพท์งานทะเบียน")}${F("year","ปีการศึกษาปัจจุบัน (พ.ศ.)",String(defaultAcadYear()))}
+    ${F("taxId","เลขประจำตัวผู้เสียภาษีของสถานศึกษา (หนังสือขอซื้อแบบพิมพ์)")}${F("areaDirector","ชื่อผู้อำนวยการสำนักงานเขตพื้นที่ (แบบลายมือชื่อ)")}${F("formLow","เตือนเมื่อแบบพิมพ์คงเหลือไม่เกิน (แผ่น)","10")}
   </div></fieldset>
   <fieldset><legend>ผู้ลงนามและเลขที่หนังสือ</legend><div class="fgrid">
     ${F("director","ชื่อผู้ลงนาม *","นาย…")}${F("directorPos","ตำแหน่งผู้ลงนาม","ผู้อำนวยการโรงเรียน…")}${F("registrar","ชื่อนายทะเบียน")}
@@ -1021,11 +1285,12 @@ function renderSettings(){
     try{ const url=await shrinkImage(f,450); await saveSchool({...state.school,logo:url}); toast("บันทึกตราแล้ว"); }catch(err){ writeErr(err); } });
   $("#cf-restore").addEventListener("change", async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return; let d;
     try{ d=JSON.parse(await f.text()); if(d.app!=="student-registry" || !Array.isArray(d.students)) throw 0; }catch{ toast("ไฟล์นี้ไม่ใช่ไฟล์สำรองของโปรแกรม"); return; }
-    const ok=await confirmBox("กู้คืนข้อมูล",`นำเข้านักเรียน <b>${D(d.students.length)}</b> คน และเอกสาร <b>${D((d.issued||[]).length)}</b> ฉบับ จากไฟล์สำรองวันที่ ${h(thaiDate((d.savedAt||"").slice(0,10)))}<p class="hint">รายการที่มีอยู่แล้วจะถูกแทนด้วยข้อมูลในไฟล์ รายการอื่นยังอยู่</p>`,"กู้คืน");
+    const ok=await confirmBox("กู้คืนข้อมูล",`นำเข้านักเรียน <b>${D(d.students.length)}</b> คน และเอกสาร <b>${D((d.issued||[]).length)}</b> ฉบับ${d.school?" พร้อมการตั้งค่าสถานศึกษา":""} จากไฟล์สำรองวันที่ ${h(thaiDate((d.savedAt||"").slice(0,10)))}<p class="hint">รายการที่มีอยู่แล้วจะถูกแทนด้วยข้อมูลในไฟล์ รายการอื่นยังอยู่</p>`,"กู้คืน");
     if(!ok) return;
     try{ const strip=x=>{ const {_id,...rest}=x; return [_id||newId(),rest]; };
       await saveMany("students", d.students.map(strip), ()=>{}); await saveMany("issued", (d.issued||[]).map(strip), ()=>{});
-      if(d.school) await saveSchool({...DEFAULT_SCHOOL,...d.school}); toast("กู้คืนข้อมูลแล้ว"); }catch(err){ writeErr(err); } });
+      if(d.forms?.length) await saveMany("forms", d.forms.map(strip), ()=>{}); if(d.batches?.length) await saveMany("batches", d.batches.map(strip), ()=>{});
+      if(d.school) await saveSchool({...DEFAULT_SCHOOL,...state.school,...d.school}); toast("กู้คืนข้อมูลแล้ว"); }catch(err){ writeErr(err); } });
   $("#cf-logo-rm")?.addEventListener("click", async()=>{ try{ await saveSchool({...state.school,logo:""}); }catch(err){ writeErr(err); } });
 }
 // student photo: small JPEG (about 15 KB) so 1,000 students still fit in the database
@@ -1171,7 +1436,7 @@ async function saveText(name, text){
 }
 function exportStudents(){ const rows=[CSV_COLS.map(c=>c[1]).join(",")].concat(sortStudents([...state.students]).map(s=>CSV_COLS.map(([k])=>CSV_TEXT_KEYS.includes(k)?csvText(s[k]):csvCell(k==="status"?STATUSES[s[k]]:(DATE_KEYS.includes(k)&&s[k]?thaiDateShort(s[k]):s[k]))).join(",")));
   saveText(`ทะเบียนนักเรียน_${todayISO()}.csv`, rows.join("\r\n")); }
-function exportLog(){ const rows=[["เลขที่","ลงวันที่","ประเภท","เลขประจำตัว","ชื่อ–สกุล","ชั้น","ห้อง","ใช้เพื่อ","สถานะ"].join(",")].concat(state.issued.map(d=>[d.number,thaiDateShort(d.date),DOCTYPES[d.type]?.name,d.studentId,d.studentName,d.grade,d.room,d.purpose,d.voided?"ยกเลิก":"ใช้งาน"].map(csvCell).join(",")));
+function exportLog(){ const rows=[["เลขที่","ลงวันที่","ประเภท","เลขประจำตัว","ชื่อ–สกุล","ชั้น","ห้อง","ใช้เพื่อ","สถานะ"].join(",")].concat(state.issued.map(d=>[d.number,thaiDateShort(d.date),typeName(d.type),d.studentId,d.studentName,d.grade,d.room,d.purpose,d.voided?"ยกเลิก":"ใช้งาน"].map(csvCell).join(",")));
   saveText(`ทะเบียนคุมเอกสาร_${todayISO()}.csv`, rows.join("\r\n")); }
 
 /* ---------- global actions ---------- */
@@ -1192,7 +1457,7 @@ document.addEventListener("click", async e=>{
     case "import": openImport(); break;
     case "export": exportStudents(); break;
     case "export-log": exportLog(); break;
-    case "backup": { const data={app:"student-registry",version:1,savedAt:new Date().toISOString(),school:state.school,students:state.studentsAll,issued:state.issued};
+    case "backup": { const data={app:"student-registry",version:1,savedAt:new Date().toISOString(),school:state.school,students:state.studentsAll,issued:state.issued,forms:state.forms,batches:state.batches};
       try{ await saveFile(`สำรองข้อมูลทะเบียน_${todayISO()}.json`, new Blob([JSON.stringify(data)],{type:"application/json"})); toast("บันทึกไฟล์สำรองแล้ว"); lsSet("reg.lastBackup",new Date().toISOString()); renderBanner(); }catch(err){ if(err?.code!=="declined") toast("บันทึกไฟล์ไม่สำเร็จ"); } break; }
     case "csv-template": { const ex={studentId:"10234",citizenId:"1103700012346",prefix:"เด็กชาย",firstName:"ตัวอย่าง",lastName:"นามสกุลตัวอย่าง",grade:"ป.4",room:"1",birthDate:"15/05/2559",status:"กำลังศึกษา",enrollDate:"16/05/2566",nationality:"ไทย",religion:"พุทธ",bloodType:"O",father:"นายตัวอย่าง นามสกุลตัวอย่าง",addrNo:"9",addrMoo:"9",addrTambon:"บึงคอไห",addrAmphoe:"ลำลูกกา",addrProvince:"ปทุมธานี",addrZip:"12150"};
       saveText("แบบฟอร์มนำเข้านักเรียน.csv", CSV_COLS.map(c=>c[1]).join(",")+"\r\n"+CSV_COLS.map(([k])=>csvCell(ex[k]||"")).join(",")); break; }
@@ -1206,6 +1471,8 @@ document.addEventListener("click", async e=>{
     case "purge": { const x=state.trash.find(t=>t._id===id); if(!x) return;
       if(!await confirmBox("ลบถาวร",`ลบข้อมูลของ <b>${h(fullName(x))}</b> ถาวร? กู้คืนไม่ได้อีก`,"ลบถาวร")) { openTrash(); return; }
       try{ await deleteDoc("students",id); toast("ลบถาวรแล้ว"); openTrash(); }catch(err){ writeErr(err); } break; }
+    case "reserve-out": openReserve(); break;
+    case "stk-cancel": cancelStock(id); break;
     case "print-rec": { const d=state.issued.find(x=>x._id===id); if(d) printPages(recordHTML(d)); break; }
     case "reprint": { const d=state.issued.find(x=>x._id===id); if(d) exportPdf(recordHTML(d), fileName(d)); break; }
     case "void": { const d=state.issued.find(x=>x._id===id); if(!d) return;
