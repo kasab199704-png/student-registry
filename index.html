@@ -233,20 +233,38 @@ function lsSet(k,v){ try{localStorage.setItem(k,v);}catch{} }
 
 /* ---------- state + store ---------- */
 const state = {school:{...DEFAULT_SCHOOL}, students:[], issued:[], loaded:{school:false,students:false,issued:false}, db:null, dl:null, offline:false, readOnly:false, slow:false};
-const mem = {students:new Map(), issued:new Map()};
 const newId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 
+/* local mode: when the page is opened outside claude.ai (a file on this computer, any web host)
+   data is kept in this browser's IndexedDB so it survives closing the page */
+const local = {
+  db:null, ok:false,
+  open(){ return new Promise(res=>{ try{ const r=indexedDB.open("student-registry",1);
+    r.onupgradeneeded=()=>r.result.createObjectStore("kv");
+    r.onsuccess=()=>{ this.db=r.result; this.ok=true; res(true); }; r.onerror=()=>res(false); r.onblocked=()=>res(false); }catch{ res(false); } }); },
+  get(k){ return new Promise(res=>{ if(!this.ok) return res(undefined); try{ const r=this.db.transaction("kv").objectStore("kv").get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>res(undefined); }catch{ res(undefined); } }); },
+  put(k,v){ return new Promise((res,rej)=>{ if(!this.ok) return res(); try{ const t=this.db.transaction("kv","readwrite"); t.objectStore("kv").put(v,k);
+    t.oncomplete=()=>res(); t.onerror=t.onabort=()=>{ const e=t.error||new Error("write failed"); if(e.name==="QuotaExceededError") e.code="quota_exceeded"; rej(e); }; }catch(e){ rej(e); } }); }
+};
+const sortIssued = a => a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));
 async function saveDoc(col, id, data){
-  if(state.db){ await state.db.collection(col).doc(id).set(data); }
-  else { mem[col].set(id,{...data,_id:id}); state[col]=[...mem[col].values()]; renderAll(); }
+  if(state.db){ await state.db.collection(col).doc(id).set(data); return; }
+  const next=state[col].filter(x=>x._id!==id).concat({...data,_id:id}); if(col==="issued") sortIssued(next);
+  await local.put(col, next); state[col]=next; renderAll();
 }
 async function deleteDoc(col,id){
-  if(state.db){ await state.db.collection(col).doc(id).delete(); }
-  else { mem[col].delete(id); state[col]=[...mem[col].values()]; renderAll(); }
+  if(state.db){ await state.db.collection(col).doc(id).delete(); return; }
+  const next=state[col].filter(x=>x._id!==id); await local.put(col, next); state[col]=next; renderAll();
+}
+// import many rows with one write in local mode (one write per row would be slow)
+async function saveMany(col, items, onProgress){
+  if(state.db){ let n=0; for(const [id,data] of items){ await state.db.collection(col).doc(id).set(data); onProgress(++n); } return; }
+  const map=new Map(state[col].map(x=>[x._id,x])); items.forEach(([id,data])=>map.set(id,{...data,_id:id}));
+  const next=[...map.values()]; await local.put(col,next); state[col]=next; onProgress(items.length); renderAll();
 }
 async function saveSchool(data){
-  if(state.db) await state.db.doc("config/school").set(data);
-  else { state.school={...DEFAULT_SCHOOL,...data}; renderAll(); }
+  if(state.db){ await state.db.doc("config/school").set(data); return; }
+  await local.put("school", data); state.school={...DEFAULT_SCHOOL,...data}; renderAll();
 }
 function writeErr(e){
   if(e && e.code==="invalid_argument"){ state.readOnly=true; renderBanner(); toast("คุณมีสิทธิ์ดูอย่างเดียว บันทึกข้อมูลไม่ได้"); }
@@ -261,7 +279,11 @@ async function boot(){
   try{ db = await (window.claude?.use?.("db") ?? null); }catch{ db=null; }
   try{ dl = await (window.claude?.use?.("downloads") ?? null); }catch{ dl=null; }
   state.dl = dl;
-  if(!db){ state.offline=true; Object.keys(state.loaded).forEach(k=>state.loaded[k]=true); renderAll(); return; }
+  if(!db){
+    state.offline=true; state.local=await local.open();
+    if(state.local){ state.school={...DEFAULT_SCHOOL,...(await local.get("school")||{})}; state.students=await local.get("students")||[]; state.issued=sortIssued(await local.get("issued")||[]);
+      try{ navigator.storage?.persist?.(); }catch{} }
+    Object.keys(state.loaded).forEach(k=>state.loaded[k]=true); renderAll(); return; }
   state.db = db;
   const timer = setTimeout(()=>{ state.slow=true; renderBanner(); },10000);
   const done = () => { if(Object.values(state.loaded).every(Boolean)){ clearTimeout(timer); state.slow=false; renderBanner(); } };
@@ -305,7 +327,8 @@ function renderHeader(){
 }
 function renderBanner(){
   const b=$("#banner"); let msg="";
-  if(state.offline && !state.db) msg="หน้านี้ยังเชื่อมต่อฐานข้อมูลไม่ได้ ข้อมูลที่กรอกจะหายเมื่อปิดหน้า ลองเปิดหน้านี้ใน claude.ai ขณะเข้าสู่ระบบ";
+  if(state.offline && !state.db && state.local) msg="ทำงานบนเครื่องนี้ ข้อมูลเก็บในเบราว์เซอร์ของเครื่องนี้เท่านั้น ควรกด “สำรองข้อมูล” ที่แท็บตั้งค่าเป็นประจำ และอย่าล้างข้อมูลเว็บไซต์ของเบราว์เซอร์";
+  else if(state.offline && !state.db) msg="เบราว์เซอร์นี้ไม่อนุญาตให้เก็บข้อมูล (อาจเปิดโหมดไม่ระบุตัวตน) ข้อมูลที่กรอกจะหายเมื่อปิดหน้า";
   else if(state.offline) msg="การเชื่อมต่อฐานข้อมูลขาดหาย ข้อมูลที่แสดงอาจไม่เป็นปัจจุบัน";
   else if(state.slow) msg="ยังโหลดข้อมูลไม่ครบ ข้อมูลที่แสดงอาจไม่เป็นปัจจุบัน";
   else if(state.readOnly) msg="คุณมีสิทธิ์ดูอย่างเดียว ขอสิทธิ์ผู้ร่วมแก้ไขจากเจ้าของหน้านี้หากต้องการบันทึกข้อมูล";
@@ -383,8 +406,8 @@ function drawStudentTable(){
 /* student form */
 const SFIELDS = [
   ["ข้อมูลการศึกษา",[["studentId","เลขประจำตัวนักเรียน","text",true],["grade","ชั้น","grade",true],["room","ห้อง","text"],["status","สถานะ","status",true],["enrollDate","วันที่เข้าเรียน","date"],["leaveDate","วันที่จำหน่าย (จบ/ย้าย/ลาออก)","date"],["moveTo","สถานศึกษาที่ย้ายไป","text",false,"wide"],["moveReason","เหตุผลการย้าย (เช่น ย้ายตามผู้ปกครอง)","text",false,"wide"]]],
-  ["ข้อมูลส่วนตัว",[["prefix","คำนำหน้า","prefix",true],["firstName","ชื่อ","text",true],["lastName","นามสกุล","text",true],["citizenId","เลขประจำตัวประชาชน","cid"],["birthDate","วันเกิด","date"],["nationality","สัญชาติ","text"],["religion","ศาสนา","text"],["bloodType","หมู่เลือด","text"]]],
-  ["ผู้ปกครอง",[["father","ชื่อ–สกุลบิดา","text"],["mother","ชื่อ–สกุลมารดา","text"],["guardian","ผู้ปกครอง (ถ้าไม่ใช่บิดามารดา)","text"],["phone","โทรศัพท์ผู้ปกครอง","text"]]],
+  ["ข้อมูลส่วนตัว",[["prefix","คำนำหน้า","prefix",true],["firstName","ชื่อ","text",true],["lastName","นามสกุล","text",true],["citizenId","เลขประจำตัวประชาชน","cid"],["gender","เพศ","gender"],["birthDate","วันเกิด","date"],["nationality","สัญชาติ","text"],["race","เชื้อชาติ","text"],["religion","ศาสนา","text"],["bloodType","หมู่เลือด","text"],["weight","น้ำหนัก (กก.)","text"],["height","ส่วนสูง (ซม.)","text"],["disadvantage","ความด้อยโอกาส","text",false,"wide"]]],
+  ["ผู้ปกครอง",[["father","ชื่อ–สกุลบิดา","text"],["fatherJob","อาชีพบิดา","text"],["mother","ชื่อ–สกุลมารดา","text"],["motherJob","อาชีพมารดา","text"],["guardian","ชื่อ–สกุลผู้ปกครอง","text"],["guardianRelation","ความเกี่ยวข้องกับนักเรียน (เช่น มารดา ยาย)","text"],["guardianJob","อาชีพผู้ปกครอง","text"],["phone","โทรศัพท์ผู้ปกครอง","text"]]],
   ["ที่อยู่ตามทะเบียนบ้าน",[["addrNo","บ้านเลขที่","text"],["addrMoo","หมู่ที่","text"],["addrVillage","หมู่บ้าน / อาคาร","text"],["addrSoi","ซอย","text"],["addrRoad","ถนน","text"],["addrTambon","ตำบล / แขวง","text"],["addrAmphoe","อำเภอ / เขต","text"],["addrProvince","จังหวัด","province"],["addrZip","รหัสไปรษณีย์","zip"],["_addrPreview","ที่อยู่ที่จะใช้ในเอกสาร","preview",false,"wide"]]],
   ["หมายเหตุ",[["note","หมายเหตุ","textarea",false,"wide"]]]
 ];
@@ -398,6 +421,7 @@ function openStudent(id){
   $("#studentFormBody").innerHTML = SFIELDS.map(([lg,fs])=>`<fieldset><legend>${lg}</legend><div class="fgrid">${fs.map(([k,l,t,req,cls])=>{
     const v=s[k]??""; const id="sf-"+k; let ctl;
     if(t==="grade") ctl=`<select id="${id}" name="${k}">${GRADES.map(g=>`<option ${g===v?"selected":""}>${g}</option>`).join("")}</select>`;
+    else if(t==="gender") ctl=`<select id="${id}" name="${k}">${["","ชาย","หญิง"].map(g=>`<option value="${g}" ${g===v?"selected":""}>${g||"–"}</option>`).join("")}</select>`;
     else if(t==="prefix") ctl=`<select id="${id}" name="${k}">${PREFIXES.map(g=>`<option ${g===v?"selected":""}>${g}</option>`).join("")}</select>`;
     else if(t==="status") ctl=`<select id="${id}" name="${k}">${Object.entries(STATUSES).map(([a,b])=>`<option value="${a}" ${a===v?"selected":""}>${b}</option>`).join("")}</select>`;
     else if(t==="textarea") ctl=`<textarea id="${id}" name="${k}">${h(v)}</textarea>`;
@@ -705,13 +729,19 @@ async function buildPdf(html){
   return pdf.output("blob");
 }
 window.__regTest={renderPaperCanvas,buildPdf,paperHTML:(...a)=>paperHTML(...a)};
+// save a file: through claude.ai when available, otherwise a normal browser download
+async function saveFile(name, data){
+  if(state.dl) return state.dl.save({filename:name, data});
+  const blob = data instanceof Blob ? data : new Blob([data],{type:/\.csv$/i.test(name)?"text/csv;charset=utf-8":"application/octet-stream"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
 async function exportPdf(html, name){
-  if(!state.dl){ toast("หน้านี้ดาวน์โหลดไฟล์ไม่ได้ เปิดหน้าใน claude.ai เพื่อดาวน์โหลด"); return; }
   if(!window.jspdf){ toast("โหลดตัวสร้าง PDF ไม่สำเร็จ ลองรีเฟรชหน้า"); return; }
   try{
     toast("กำลังสร้าง PDF…");
     const blob=await buildPdf(html);
-    await state.dl.save({filename:name, data:blob}); toast("บันทึกไฟล์แล้ว");
+    await saveFile(name, blob); toast("บันทึกไฟล์แล้ว");
   }catch(e){ if(e?.code==="declined") return; console.error(e); toast(e?.code==="rate_limited"?"มีหน้าต่างบันทึกไฟล์เปิดอยู่ ลองอีกครั้ง":"สร้างหรือบันทึก PDF ไม่สำเร็จ"); }
 }
 
@@ -765,6 +795,8 @@ function renderSettings(){
     ${s.logo?`<button type="button" class="btn danger sm" id="cf-logo-rm">นำตราออก</button>`:""}
     <span class="hint">PNG พื้นใส ความสูงอย่างน้อย ๓๕๐ พิกเซล</span></div></fieldset>
   <div class="row"><button class="btn primary" type="submit" id="btnSaveSchool">บันทึกการตั้งค่า</button></div></form>
+  <div class="panel" style="margin-top:20px"><h3>สำรองและกู้คืนข้อมูล</h3><p class="sub" style="margin:0 0 12px">ไฟล์สำรองรวมข้อมูลนักเรียน ทะเบียนคุมเอกสาร และการตั้งค่าทั้งหมด ใช้ย้ายข้อมูลไปเครื่องอื่นหรือกู้คืนเมื่อข้อมูลหาย เก็บไฟล์ไว้ในที่ปลอดภัยเพราะมีข้อมูลส่วนบุคคล</p>
+    <div class="row"><button type="button" class="btn primary" data-act="backup">สำรองข้อมูล</button><label class="btn" for="cf-restore">กู้คืนจากไฟล์สำรอง<input type="file" id="cf-restore" accept=".json,application/json" hidden></label></div></div>
   <div class="panel" style="margin-top:20px"><h3>สิทธิ์การเข้าถึงข้อมูล</h3><p class="sub" style="margin:0">ข้อมูลนักเรียนเป็นข้อมูลส่วนบุคคลตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล หน้านี้ตั้งให้เฉพาะผู้ที่ได้รับสิทธิ์ “ผู้ร่วมแก้ไข” (Contributor) ขึ้นไปเท่านั้นที่เห็นและบันทึกข้อมูลได้ ผู้ที่ได้รับสิทธิ์ดูอย่างเดียวจะไม่เห็นรายชื่อนักเรียน แชร์หน้านี้ให้เฉพาะเจ้าหน้าที่งานทะเบียน</p></div>`;
   $("#fSchool").addEventListener("submit", async e=>{ e.preventDefault(); if(state.readOnly){toast("คุณมีสิทธิ์ดูอย่างเดียว");return;}
     const fd=new FormData(e.target); const d={...state.school}; for(const [k,v] of fd) if(k!=="thaiDigits") d[k]=String(v).trim();
@@ -773,6 +805,13 @@ function renderSettings(){
     $("#btnSaveSchool").disabled=true; try{ await saveSchool(d); toast("บันทึกการตั้งค่าแล้ว"); }catch(err){ writeErr(err); } finally{ const b=$("#btnSaveSchool"); if(b) b.disabled=false; } });
   $("#cf-logo").addEventListener("change", async e=>{ const f=e.target.files[0]; if(!f) return;
     try{ const url=await shrinkImage(f,450); await saveSchool({...state.school,logo:url}); toast("บันทึกตราแล้ว"); }catch(err){ writeErr(err); } });
+  $("#cf-restore").addEventListener("change", async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return; let d;
+    try{ d=JSON.parse(await f.text()); if(d.app!=="student-registry" || !Array.isArray(d.students)) throw 0; }catch{ toast("ไฟล์นี้ไม่ใช่ไฟล์สำรองของโปรแกรม"); return; }
+    const ok=await confirmBox("กู้คืนข้อมูล",`นำเข้านักเรียน <b>${D(d.students.length)}</b> คน และเอกสาร <b>${D((d.issued||[]).length)}</b> ฉบับ จากไฟล์สำรองวันที่ ${h(thaiDate((d.savedAt||"").slice(0,10)))}<p class="hint">รายการที่มีอยู่แล้วจะถูกแทนด้วยข้อมูลในไฟล์ รายการอื่นยังอยู่</p>`,"กู้คืน");
+    if(!ok) return;
+    try{ const strip=x=>{ const {_id,...rest}=x; return [_id||newId(),rest]; };
+      await saveMany("students", d.students.map(strip), ()=>{}); await saveMany("issued", (d.issued||[]).map(strip), ()=>{});
+      if(d.school) await saveSchool({...DEFAULT_SCHOOL,...d.school}); toast("กู้คืนข้อมูลแล้ว"); }catch(err){ writeErr(err); } });
   $("#cf-logo-rm")?.addEventListener("click", async()=>{ try{ await saveSchool({...state.school,logo:""}); }catch(err){ writeErr(err); } });
 }
 function shrinkImage(file,max){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onerror=rej; r.onload=()=>{ const img=new Image(); img.onerror=rej; img.onload=()=>{
@@ -780,7 +819,7 @@ function shrinkImage(file,max){ return new Promise((res,rej)=>{ const r=new File
   c.getContext("2d").drawImage(img,0,0,c.width,c.height); res(c.toDataURL("image/png")); }; img.src=r.result; }; r.readAsDataURL(file); }); }
 
 /* ---------- CSV ---------- */
-const CSV_COLS = [["studentId","เลขประจำตัวนักเรียน"],["citizenId","เลขประจำตัวประชาชน"],["prefix","คำนำหน้า"],["firstName","ชื่อ"],["lastName","นามสกุล"],["grade","ชั้น"],["room","ห้อง"],["birthDate","วันเกิด"],["status","สถานะ"],["enrollDate","วันที่เข้าเรียน"],["leaveDate","วันที่จำหน่าย"],["moveTo","สถานศึกษาที่ย้ายไป"],["nationality","สัญชาติ"],["religion","ศาสนา"],["bloodType","หมู่เลือด"],["father","บิดา"],["mother","มารดา"],["guardian","ผู้ปกครอง"],["phone","โทรศัพท์"],["address","ที่อยู่"],["addrNo","บ้านเลขที่"],["addrMoo","หมู่ที่"],["addrVillage","หมู่บ้าน"],["addrSoi","ซอย"],["addrRoad","ถนน"],["addrTambon","ตำบล"],["addrAmphoe","อำเภอ"],["addrProvince","จังหวัด"],["addrZip","รหัสไปรษณีย์"],["note","หมายเหตุ"]];
+const CSV_COLS = [["studentId","เลขประจำตัวนักเรียน"],["citizenId","เลขประจำตัวประชาชน"],["prefix","คำนำหน้า"],["firstName","ชื่อ"],["lastName","นามสกุล"],["grade","ชั้น"],["room","ห้อง"],["birthDate","วันเกิด"],["status","สถานะ"],["enrollDate","วันที่เข้าเรียน"],["leaveDate","วันที่จำหน่าย"],["moveTo","สถานศึกษาที่ย้ายไป"],["nationality","สัญชาติ"],["religion","ศาสนา"],["bloodType","หมู่เลือด"],["gender","เพศ"],["race","เชื้อชาติ"],["weight","น้ำหนัก"],["height","ส่วนสูง"],["father","บิดา"],["fatherJob","อาชีพบิดา"],["mother","มารดา"],["motherJob","อาชีพมารดา"],["guardian","ผู้ปกครอง"],["guardianRelation","ความเกี่ยวข้องของผู้ปกครอง"],["guardianJob","อาชีพผู้ปกครอง"],["phone","โทรศัพท์"],["disadvantage","ความด้อยโอกาส"],["address","ที่อยู่"],["addrNo","บ้านเลขที่"],["addrMoo","หมู่ที่"],["addrVillage","หมู่บ้าน"],["addrSoi","ซอย"],["addrRoad","ถนน"],["addrTambon","ตำบล"],["addrAmphoe","อำเภอ"],["addrProvince","จังหวัด"],["addrZip","รหัสไปรษณีย์"],["note","หมายเหตุ"]];
 const csvCell = v => { v=String(v??""); return /[",\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
 function parseCSV(text){ const rows=[]; let row=[],cur="",q=false; text=text.replace(/^﻿/,"");
   for(let i=0;i<text.length;i++){ const c=text[i];
@@ -792,22 +831,48 @@ function normDate(v){ v=(v||"").trim(); if(!v) return ""; if(/^\d{4}-\d{2}-\d{2}
   const m=v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if(m){ let y=+m[3]; if(y>2400) y-=543; return `${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`; } return ""; }
 function normStatus(v){ v=(v||"").trim(); if(!v) return "active"; if(STATUSES[v]) return v; const f=Object.entries(STATUSES).find(([,t])=>t===v || v.includes(t.slice(0,4))); return f?f[0]:"active"; }
 function normGrade(v){ v=(v||"").replace(/\s/g,"").replace("ประถมศึกษาปีที่","ป.").replace("มัธยมศึกษาปีที่","ม.").replace("อนุบาล","อ.").replace(/^([อปม])(\d)$/,"$1.$2"); return GRADES.includes(v)?v:""; }
+// column names used by the DMC export (ระบบจัดเก็บข้อมูลนักเรียนรายบุคคล สพฐ.) and similar files
+const HEAD_ALIASES = {"คำนำหน้าชื่อ":"prefix","กลุ่มเลือด":"bloodType","หมู่":"addrMoo","ถนน/ซอย":"addrRoad","บ้านเลขที่":"addrNo",
+  "อาชีพของผู้ปกครอง":"guardianJob","ความเกี่ยวข้องของผู้ปกครองกับนักเรียน":"guardianRelation","อาชีพของบิดา":"fatherJob","อาชีพของมารดา":"motherJob",
+  "คำนำหน้าชื่อผู้ปกครอง":"_gP","ชื่อผู้ปกครอง":"_gF","นามสกุลผู้ปกครอง":"_gL","คำนำหน้าชื่อบิดา":"_fP","ชื่อบิดา":"_fF","นามสกุลบิดา":"_fL",
+  "คำนำหน้าชื่อมารดา":"_mP","ชื่อมารดา":"_mF","นามสกุลมารดา":"_mL","เลขบัตรประชาชน":"citizenId","เลขประจำตัวประชาชน 13 หลัก":"citizenId","น้ำหนัก(กก.)":"weight","ส่วนสูง(ซม.)":"height"};
+const BLANK = v => /^(-|–|ไม่มี|ไม่ปรากฏ|ไม่ปรากฎ)$/.test(v);
+const joinName = (p,f,l) => (!f || BLANK(f)) ? "" : (p&&!BLANK(p)?p:"")+f+(l&&!BLANK(l)?" "+l:"");
+async function readTextFile(f){ const buf=await f.arrayBuffer();
+  try{ return new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch{ try{ return new TextDecoder("windows-874").decode(buf); }catch{ return new TextDecoder().decode(buf); } } }
+function mapImportRows(rows){
+  // skip report lines above the header (DMC puts the export time on the first line)
+  const hi=rows.findIndex(r=>r.some(x=>x.trim()==="ชื่อ")); if(hi<0) return null;
+  const head=rows[hi].map(x=>x.trim());
+  const keys=head.map(x=>{ const c=CSV_COLS.find(([k,l])=>x===l||x===k); return c?c[0]:(HEAD_ALIASES[x]||null); });
+  const hasStatus=keys.includes("status"); const problems=[];
+  const out=rows.slice(hi+1).map((r,i)=>{ const o={};
+    keys.forEach((k,j)=>{ if(!k) return; let v=(r[j]||"").trim(); if(BLANK(v)) v="";
+      // DMC has two "เลขประจำตัวนักเรียน" columns: the 13-digit one is the citizen ID
+      if(k==="studentId" && /^\d{13}$/.test(v.replace(/\D/g,"")) && v.replace(/\D/g,"").length===13){ if(!o.citizenId) o.citizenId=v; return; }
+      if(v || o[k]===undefined) o[k]=v; });
+    [["_g","guardian"],["_f","father"],["_m","mother"]].forEach(([p,k])=>{ if(o[p+"F"]!==undefined && !o[k]) o[k]=joinName(o[p+"P"],o[p+"F"],o[p+"L"]); delete o[p+"P"]; delete o[p+"F"]; delete o[p+"L"]; });
+    if(o.gender) o.gender={"ช":"ชาย","ญ":"หญิง","ชาย":"ชาย","หญิง":"หญิง"}[o.gender]||o.gender;
+    ["weight","height"].forEach(k=>{ if(o[k]!==undefined && !(parseFloat(o[k])>0)) o[k]=""; });
+    o.citizenId=(o.citizenId||"").replace(/\D/g,""); ["birthDate","enrollDate","leaveDate"].forEach(k=>o[k]=normDate(o[k]));
+    if(hasStatus) o.status=normStatus(o.status); o.grade=normGrade(o.grade)||GRADES[0];
+    if(ADDR_KEYS.some(k=>o[k])) Object.assign(o, cleanAddr(o)); else if(o.address) Object.assign(o, parseAddr(o.address));
+    if(ADDR_KEYS.some(k=>o[k])) o.address=composeAddr(o);
+    const line=hi+i+2;
+    if(!o.studentId||!o.firstName) problems.push(`แถว ${line}: ไม่มีเลขประจำตัวหรือชื่อ (ข้าม)`); else if(o.citizenId && !cidValid(o.citizenId)) problems.push(`แถว ${line}: เลขประชาชนของ ${o.firstName} ไม่ถูกต้อง (นำเข้าแต่ควรตรวจ)`);
+    return o; }).filter(o=>o.studentId&&o.firstName);
+  return {rows:out, problems, hasFirst:keys.includes("firstName")};
+}
 let importRows=[];
 function openImport(){
   importRows=[]; $("#btnDoImport").disabled=true;
-  $("#importBody").innerHTML=`<p class="sub" style="margin:0 0 12px">ไฟล์ต้องมีแถวหัวตารางตามแบบฟอร์ม บันทึกจาก Excel เป็น “CSV UTF-8” วันที่ใช้ได้ทั้ง 15/05/2556 (พ.ศ.) และ 2013-05-15 ถ้าเลขประจำตัวนักเรียนซ้ำกับที่มีอยู่ ระบบจะอัปเดตข้อมูลเดิม</p>
+  $("#importBody").innerHTML=`<p class="sub" style="margin:0 0 12px">ใช้ไฟล์ส่งออกจากระบบ DMC (บันทึกจาก Excel เป็น CSV) ได้ทันที หรือใช้แบบฟอร์มของโปรแกรมนี้ วันที่ใช้ได้ทั้ง 15/05/2556 (พ.ศ.) และ 2013-05-15 ถ้าเลขประจำตัวนักเรียนซ้ำกับที่มีอยู่ ระบบจะอัปเดตข้อมูลเดิม</p>
   <div class="row" style="margin-bottom:12px"><label class="btn primary" for="csvFile">เลือกไฟล์ CSV<input type="file" id="csvFile" accept=".csv,text/csv" hidden></label><button type="button" class="btn" data-act="csv-template">ดาวน์โหลดแบบฟอร์ม</button></div>
   <div id="importPreview" class="hint">หัวตารางที่รองรับ: ${CSV_COLS.map(c=>c[1]).join(", ")}</div>`;
-  $("#csvFile").addEventListener("change", async e=>{ const f=e.target.files[0]; if(!f) return; const rows=parseCSV(await f.text()); if(rows.length<2){ $("#importPreview").textContent="ไม่พบข้อมูลในไฟล์"; return; }
-    const head=rows[0].map(x=>x.trim()); const idx=CSV_COLS.map(([k,l])=>[k, head.findIndex(x=>x===l||x===k)]);
-    if(idx.find(([k])=>k==="firstName")[1]<0){ $("#importPreview").innerHTML=`<span class="hint bad">ไม่พบคอลัมน์ “ชื่อ” ตรวจว่าหัวตารางตรงกับแบบฟอร์ม</span>`; return; }
-    const problems=[];
-    importRows = rows.slice(1).map((r,i)=>{ const o={}; idx.forEach(([k,j])=>{ if(j>=0) o[k]=(r[j]||"").trim(); });
-      o.citizenId=(o.citizenId||"").replace(/\D/g,""); ["birthDate","enrollDate","leaveDate"].forEach(k=>o[k]=normDate(o[k])); o.status=normStatus(o.status); o.grade=normGrade(o.grade)||GRADES[0];
-      if(ADDR_KEYS.some(k=>o[k])) Object.assign(o, cleanAddr(o)); else if(o.address) Object.assign(o, parseAddr(o.address));
-      if(ADDR_KEYS.some(k=>o[k])) o.address=composeAddr(o);
-      if(!o.studentId||!o.firstName) problems.push(`แถว ${i+2}: ไม่มีเลขประจำตัวหรือชื่อ (ข้าม)`); else if(o.citizenId && !cidValid(o.citizenId)) problems.push(`แถว ${i+2}: เลขประชาชนของ ${o.firstName} ไม่ถูกต้อง (นำเข้าแต่ควรตรวจ)`);
-      return o; }).filter(o=>o.studentId&&o.firstName);
+  $("#csvFile").addEventListener("change", async e=>{ const f=e.target.files[0]; if(!f) return; const rows=parseCSV(await readTextFile(f)); if(rows.length<2){ $("#importPreview").textContent="ไม่พบข้อมูลในไฟล์"; return; }
+    const m=mapImportRows(rows);
+    if(!m || !m.hasFirst){ $("#importPreview").innerHTML=`<span class="hint bad">ไม่พบคอลัมน์ “ชื่อ” ตรวจว่าหัวตารางตรงกับแบบฟอร์ม</span>`; return; }
+    const problems=m.problems; importRows=m.rows;
     const upd=importRows.filter(o=>state.students.some(s=>s.studentId===o.studentId)).length;
     $("#importPreview").innerHTML=`<p style="margin:0 0 8px;color:var(--ink)">พร้อมนำเข้า <b>${importRows.length}</b> คน (ใหม่ ${importRows.length-upd}, อัปเดต ${upd})</p>${problems.length?`<div class="warnline">${problems.slice(0,8).map(h).join("<br>")}${problems.length>8?`<br>และอีก ${problems.length-8} รายการ`:""}</div>`:""}
     <div class="tablebox" style="margin-top:10px;max-height:240px;overflow:auto"><table><thead><tr><th>เลขประจำตัว</th><th>ชื่อ–สกุล</th><th>ชั้น</th><th>สถานะ</th></tr></thead><tbody>${importRows.slice(0,50).map(o=>`<tr><td>${h(o.studentId)}</td><td>${h(fullName(o))}</td><td>${h(o.grade)}/${h(o.room||"")}</td><td>${h(STATUSES[o.status])}</td></tr>`).join("")}</tbody></table></div>`;
@@ -815,14 +880,14 @@ function openImport(){
   $("#dlgImport").showModal();
 }
 $("#btnDoImport").addEventListener("click", async()=>{ const b=$("#btnDoImport"); b.disabled=true; let n=0;
-  try{ for(const o of importRows){ const ex=state.students.find(s=>s.studentId===o.studentId); const id=ex?._id||newId(); const now=new Date().toISOString();
-      const body={...(ex||{}),...Object.fromEntries(Object.entries(o).filter(([,v])=>v!=="")),updatedAt:now}; if(!ex) body.createdAt=now; delete body._id; delete body.example;
-      await saveDoc("students",id,body); n++; b.textContent=`กำลังนำเข้า ${n}/${importRows.length}`; }
+  try{ const now=new Date().toISOString();
+    const items=importRows.map(o=>{ const ex=state.students.find(s=>s.studentId===o.studentId); const id=ex?._id||newId();
+      const body={...(ex||{}),...Object.fromEntries(Object.entries(o).filter(([,v])=>v!=="")),updatedAt:now}; if(!ex){ body.createdAt=now; body.status=body.status||"active"; } delete body._id; delete body.example; return [id,body]; });
+    await saveMany("students", items, k=>{ n=k; b.textContent=`กำลังนำเข้า ${n}/${importRows.length}`; });
     $("#dlgImport").close(); toast(`นำเข้าแล้ว ${n} คน`);
   }catch(e){ writeErr(e); toast(`นำเข้าได้ ${n} คนก่อนเกิดข้อผิดพลาด`); } finally{ b.textContent="นำเข้า"; b.disabled=false; } });
 async function saveText(name, text){
-  if(!state.dl){ toast("หน้านี้ดาวน์โหลดไฟล์ไม่ได้ เปิดหน้าใน claude.ai เพื่อดาวน์โหลด"); return; }
-  try{ await state.dl.save({filename:name, data:"﻿"+text}); toast("บันทึกไฟล์แล้ว"); }catch(e){ if(e?.code!=="declined") toast("บันทึกไฟล์ไม่สำเร็จ"); }
+  try{ await saveFile(name, "﻿"+text); toast("บันทึกไฟล์แล้ว"); }catch(e){ if(e?.code!=="declined") toast("บันทึกไฟล์ไม่สำเร็จ"); }
 }
 function exportStudents(){ const rows=[CSV_COLS.map(c=>c[1]).join(",")].concat(sortStudents([...state.students]).map(s=>CSV_COLS.map(([k])=>csvCell(k==="status"?STATUSES[s[k]]:(["birthDate","enrollDate","leaveDate"].includes(k)&&s[k]?thaiDateShort(s[k]):s[k]))).join(",")));
   saveText(`ทะเบียนนักเรียน_${todayISO()}.csv`, rows.join("\r\n")); }
@@ -843,6 +908,8 @@ document.addEventListener("click", async e=>{
     case "import": openImport(); break;
     case "export": exportStudents(); break;
     case "export-log": exportLog(); break;
+    case "backup": { const data={app:"student-registry",version:1,savedAt:new Date().toISOString(),school:state.school,students:state.students,issued:state.issued};
+      try{ await saveFile(`สำรองข้อมูลทะเบียน_${todayISO()}.json`, new Blob([JSON.stringify(data)],{type:"application/json"})); toast("บันทึกไฟล์สำรองแล้ว"); }catch(err){ if(err?.code!=="declined") toast("บันทึกไฟล์ไม่สำเร็จ"); } break; }
     case "csv-template": { const ex={studentId:"10234",citizenId:"1103700012346",prefix:"เด็กชาย",firstName:"ตัวอย่าง",lastName:"นามสกุลตัวอย่าง",grade:"ป.4",room:"1",birthDate:"15/05/2559",status:"กำลังศึกษา",enrollDate:"16/05/2566",nationality:"ไทย",religion:"พุทธ",bloodType:"O",father:"นายตัวอย่าง นามสกุลตัวอย่าง",addrNo:"9",addrMoo:"9",addrTambon:"บึงคอไห",addrAmphoe:"ลำลูกกา",addrProvince:"ปทุมธานี",addrZip:"12150"};
       saveText("แบบฟอร์มนำเข้านักเรียน.csv", CSV_COLS.map(c=>c[1]).join(",")+"\r\n"+CSV_COLS.map(([k])=>csvCell(ex[k]||"")).join(",")); break; }
     case "del-student": { const s=editing; if(!s) return;
