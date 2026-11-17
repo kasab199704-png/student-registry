@@ -1027,7 +1027,7 @@ function confirmBox(title, body, yes="ยืนยัน", no="ยกเลิ�
 const defaultAttach = (n, list=[]) => list.length && list.every(x=>/^อ\./.test(x.grade||""))
   ? `สมุดรายงานประจำตัวนักเรียน (ระดับปฐมวัย) จำนวน ${n} เล่ม`
   : `ระเบียนแสดงผลการเรียน (ปพ.๑) จำนวน ${n} ฉบับ\nแบบรายงานประจำตัวนักเรียน (ปพ.๖) จำนวน ${n} ฉบับ\nสมุดบันทึกผลการเรียนรู้ (ปพ.๙) จำนวน ${n} เล่ม`;
-const iss = {moveTo:"", moveReason:"", leaveDate:"", mtEdited:false, attach:defaultAttach(1), attachEdited:false, sids:[], relation:"", reqName:"", reqAddr:"", reqWho:"", sid:null, type:"student", purpose:"", extra:"", date:todayISO(), q:"", photo:false};
+const iss = {seq:"", moveTo:"", moveReason:"", leaveDate:"", mtEdited:false, attach:defaultAttach(1), attachEdited:false, sids:[], relation:"", reqName:"", reqAddr:"", reqWho:"", sid:null, type:"student", purpose:"", extra:"", date:todayISO(), q:"", photo:false};
 function renderIssue(){
   const el=$("#v-issue");
   if(!el.dataset.built){
@@ -1048,6 +1048,7 @@ function renderIssue(){
       <datalist id="purposes"><option>ขอรับทุนการศึกษา</option><option>สมัครเข้าศึกษาต่อ</option><option>ประกอบการเบิกค่าเล่าเรียนบุตร</option><option>ทำบัตรประจำตัวประชาชน</option><option>ขอลดหย่อนค่าโดยสาร</option><option>สมัครสอบแข่งขัน</option></datalist>
       <label class="f" for="isExtra">ข้อความเพิ่มเติม (ถ้ามี)<textarea id="isExtra" placeholder="จะแทรกเป็นย่อหน้าก่อนคำลงท้าย"></textarea></label>
       <label class="f" for="isDate">ลงวันที่<input type="date" id="isDate"></label>
+      <label class="f" for="isSeq">เลขที่หนังสือ (เว้นว่าง = ให้ระบบรันเลขต่อเอง)<input id="isSeq" inputmode="numeric" placeholder="อัตโนมัติ"><span class="hint" id="isSeqHint"></span></label>
       <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" id="isPhoto" style="width:auto"> ติดรูปถ่าย ๔ × ๖ ซม. และลายมือชื่อผู้ได้รับการรับรอง (เรื่องสำคัญ ข้อ ๒๔.๗)</label>
       <div id="isWarn"></div>
       <div class="row actbar"><button class="btn primary" id="isIssue">ออกเลขและบันทึก</button><button class="btn" id="isDraft">ดาวน์โหลดร่าง (PDF)</button><button class="btn" id="isPrint">พิมพ์ร่าง</button></div>
@@ -1064,6 +1065,7 @@ function renderIssue(){
     $("#isAttach").addEventListener("input",e=>{iss.attach=e.target.value; iss.attachEdited=true; drawPreview();});
     $("#isExtra").addEventListener("input",e=>{iss.extra=e.target.value; drawPreview();});
     $("#isDate").addEventListener("change",e=>{iss.date=e.target.value||todayISO(); drawPreview();});
+    $("#isSeq").addEventListener("input",e=>{iss.seq=e.target.value; drawPreview();});
     $("#isPhoto").addEventListener("change",e=>{iss.photo=e.target.checked; drawPreview();});
     $("#isIssue").addEventListener("click",issueDoc);
     $("#isDraft").addEventListener("click",()=>{ const list=selForDoc(); if(!list.length){toast("เลือกนักเรียนก่อน");return;} exportPdf(paperHTML(list[0],{reqName:iss.reqName,reqAddr:iss.reqAddr,students:list,number:nextNumber()+" (ร่าง)",type:iss.type,purpose:iss.purpose,extra:iss.extra,date:iss.date,photo:iss.photo,attach:iss.attach,relation:iss.relation}), `ร่าง-${DOCTYPES[iss.type].short||DOCTYPES[iss.type].name}-${list.map(x=>x.firstName).join("-")}.pdf`); });
@@ -1162,7 +1164,10 @@ const nextSeq = (y, series) => state.issued.filter(d=>d.year===y && seriesOf(d)=
 const seqTaken = (y, series, n) => state.issued.some(d=>d.year===y && seriesOf(d)===series && (d.seq===n || d.seq2===n));
 const outPrefix = () => String(state.school.docPrefix||"").replace(/^\s*ที่\s*/,"");
 const outNo = seq => `ที่ ${outPrefix()}${seq}`;
-function nextNumber(type=iss.type){ const y=docYear(iss.date); return fmtNumber(nextSeq(y,seriesFor(type)),y,type); }
+// เลขที่ที่ครูกรอกเอง (เช่น ขอจากทะเบียนหนังสือส่งของโรงเรียนใน Google Sheet) มาก่อนเลขที่ระบบรันให้
+function issueSeq(type=iss.type){ const y=docYear(iss.date); return numIn(iss.seq)||nextSeq(y,seriesFor(type)); }
+function nextNumber(type=iss.type){ const y=docYear(iss.date); return fmtNumber(issueSeq(type),y,type); }
+const sheetLink = () => /^https:\/\//.test(state.school.sheetUrl||"") ? ` <a href="${h(state.school.sheetUrl)}" target="_blank" rel="noopener">เปิดทะเบียนขอเลขของโรงเรียน ↗</a>` : "";
 function fmtNumber(seq,y,type){ const sc=state.school; if(sc.numMode==="external" || DOCTYPES[type]?.letter){ const pre=String(sc.docPrefix||"").replace(/^\s*ที่\s*/,""); return `ที่ ${pre}${seq}`; } return `ที่ ${seq}/${y}`; }
 function drawPreview(){
   syncMove(); const mb=$("#isMoveBox"); if(mb){ mb.hidden=!isLetter(); [["#isMoveTo","moveTo"],["#isMoveReason","moveReason"],["#isLeave","leaveDate"]].forEach(([sel,k])=>{ const el=$(sel); if(el && document.activeElement!==el) el.value=iss[k]||""; }); }
@@ -1181,6 +1186,8 @@ function drawPreview(){
   if(letter && !String(state.school.docPrefix||"").replace(/^\s*ที่\s*/,"").trim()) warns.push("หนังสือภายนอกต้องมีรหัสตัวพยัญชนะและเลขประจำส่วนราชการ (เช่น ศธ ๐๔xxx.xxx/) กรอกในแท็บ “ตั้งค่า”");
   if(iss.type==="grad" && !s.leaveDate) warns.push("ยังไม่ได้กรอก “วันที่จำหน่าย” ในข้อมูลนักเรียน");
   if(loading()) warns.push("กำลังโหลดทะเบียนคุมเอกสาร รอสักครู่ก่อนออกเลข");
+  if(numIn(iss.seq) && seqTaken(docYear(iss.date),seriesFor(iss.type),numIn(iss.seq))) warns.push(`เลขที่ ${numIn(iss.seq)} มีในทะเบียนคุมแล้ว ใส่เลขอื่น`);
+  const sh=$("#isSeqHint"); if(sh){ const ext=seriesFor(iss.type)==="out"; sh.innerHTML = ext ? `เลขหนังสือส่ง ถ้าโรงเรียนให้ขอเลขจากทะเบียนกลาง ให้ขอแล้วนำเลขมาใส่ที่นี่${sheetLink()}` : "เลขหนังสือรับรอง (ลำดับ/พ.ศ.)"; }
   $("#isIssue").disabled = loading();
   w.innerHTML = warns.map(x=>`<div class="warnline">${h(x)}</div>`).join('<div style="height:6px"></div>');
   $("#paperScale").innerHTML = paperHTML(s,{students:list,relation:iss.relation,reqName:iss.reqName,reqAddr:iss.reqAddr,number:nextNumber(),type:iss.type,purpose:iss.purpose,extra:iss.extra,date:iss.date,photo:iss.photo,attach:iss.attach});
@@ -1280,16 +1287,17 @@ async function issueDoc(){
   if(state.readOnly){ toast("คุณมีสิทธิ์ดูอย่างเดียว"); return; }
   if(!state.school.name){ toast("กรอกชื่อสถานศึกษาในแท็บ “ตั้งค่า” ก่อน"); return; }
   if(loading()){ toast("รอให้ข้อมูลโหลดครบก่อน เพื่อไม่ให้เลขหนังสือซ้ำ"); return; }
-  const y=docYear(iss.date), ser=seriesFor(iss.type); let seq=nextSeq(y,ser);
+  const y=docYear(iss.date), ser=seriesFor(iss.type), manual=numIn(iss.seq)>0; let seq=issueSeq();
+  if(manual && seqTaken(y,ser,seq)){ toast(`เลขที่ ${seq} ปี ${y} มีในทะเบียนคุมแล้ว ใส่เลขอื่น`); return; }
   const ok = await confirmBox("ออกเลขหนังสือ", `<dl class="kv"><dt>เลขที่</dt><dd>${h(D(fmtNumber(seq,y,iss.type)))}</dd><dt>ประเภท</dt><dd>${h(DOCTYPES[iss.type].name)}</dd><dt>นักเรียน</dt><dd>${h(names)}</dd><dt>ลงวันที่</dt><dd>${h(thaiDate(iss.date))}</dd></dl>`, "ออกเลขและบันทึก");
   if(!ok) return;
-  if(nextSeq(y,ser)!==seq){ seq=nextSeq(y,ser); toast(`มีการออกเลขจากที่อื่นระหว่างนี้ เลขที่เปลี่ยนเป็น ${D(fmtNumber(seq,y,iss.type))}`); }
+  if(!manual && nextSeq(y,ser)!==seq){ seq=nextSeq(y,ser); toast(`มีการออกเลขจากที่อื่นระหว่างนี้ เลขที่เปลี่ยนเป็น ${D(fmtNumber(seq,y,iss.type))}`); }
   const snaps = list.map(snapOf);
   const rec = {series:ser, attach:iss.attach, relation:iss.relation, reqName:iss.reqName, reqAddr:iss.reqAddr, studentRefs:list.map(x=>x._id), snapshots:snaps, number:fmtNumber(seq,y,iss.type), seq, year:y, type:iss.type, studentRef:s._id, studentId:list.map(x=>x.studentId||"").join(", "), studentName:names, grade:s.grade||"", room:s.room||"",
     purpose:iss.purpose, extra:iss.extra, date:iss.date, photo:iss.photo, snapshot:snapOf(s), school:{...state.school, logo:undefined}, createdAt:new Date().toISOString(), voided:false};
   delete rec.school.logo;
   $("#isIssue").disabled=true;
-  try{ await saveDoc("issued", newId(), rec); toast(`ออกเลข ${D(rec.number)} แล้ว`); await afterTransfer(list); deliver(recordHTML(rec), fileName(rec), rec.number); }
+  try{ await saveDoc("issued", newId(), rec); toast(`ออกเลข ${D(rec.number)} แล้ว`); iss.seq=""; const sq=$("#isSeq"); if(sq) sq.value=""; drawPreview(); await afterTransfer(list); deliver(recordHTML(rec), fileName(rec), rec.number); }
   catch(e){ writeErr(e); } finally{ $("#isIssue").disabled=false; }
 }
 function recordHTML(r){ const keep=state.school; state.school={...DEFAULT_SCHOOL,...r.school,logo:keep.logo}; try{ if(r.type==="order") return orderHTML(r.data); if(r.type==="purchase") return purchaseHTML(r.data); return paperHTML(r.snapshot,{students:r.snapshots||[r.snapshot],relation:r.relation||"",reqName:r.reqName||"",reqAddr:r.reqAddr||"",attach:r.attach||"",number:r.number,type:r.type,purpose:r.purpose,extra:r.extra,date:r.date,photo:r.photo}); } finally{ state.school=keep; } }
@@ -1485,7 +1493,7 @@ function drawLetters(){
       ${fIn("date","สั่ง ณ วันที่",o.date,{type:"date"})}${fIn("subject","เรื่อง",o.subject)}${fIn("pre","ข้อความอ้างอิงอำนาจ",o.pre,{area:6})}
       ${o.roles.map((r,i)=>`<fieldset style="margin:0"><legend>${D(i+1)}. ${h(r.title)}</legend><div style="display:grid;gap:8px">${fIn(`roles.${i}.title`,"ตำแหน่งในคณะกรรมการ",r.title)}${fIn(`roles.${i}.name`,"ชื่อ–สกุล (เว้นว่างถ้าไม่ใช้ข้อนี้)",r.name)}${fIn(`roles.${i}.pos`,"ตำแหน่ง",r.pos)}${fIn(`roles.${i}.duty`,"หน้าที่",r.duty,{area:4})}</div></fieldset>`).join("")}
       ${fIn("closing","ข้อความปิดท้าย",o.closing,{area:2})}`
-    : `${fIn("seq","เลขที่หนังสือฉบับแรก (ฉบับที่สองใช้เลขถัดไป)",o.seq,{num:1,ph:"อัตโนมัติ"})}${fIn("date","ลงวันที่",o.date,{type:"date"})}
+    : `${fIn("seq","เลขที่หนังสือฉบับแรก (ฉบับที่สองใช้เลขถัดไป)",o.seq,{num:1,ph:"อัตโนมัติ"})}${state.school.sheetUrl?`<span class="hint" style="margin-top:-10px">${sheetLink()}</span>`:""}${fIn("date","ลงวันที่",o.date,{type:"date"})}
       <fieldset style="margin:0"><legend>ผู้ดำเนินการจัดซื้อ</legend><div style="display:grid;gap:8px">${fIn("name","ชื่อ–สกุล",o.name)}${fIn("pos","ตำแหน่ง",o.pos,{ph:"เช่น ครูผู้ช่วย"})}${fIn("cid","เลขประจำตัวประชาชน (พิมพ์ในแบบลายมือชื่อ ไม่เก็บในฐานข้อมูล)",o.cid,{num:1})}</div></fieldset>
       <fieldset style="margin:0"><legend>จำนวนที่ขอซื้อ</legend><div style="display:grid;gap:8px">${PURCHASE_ITEMS.map(i=>fIn(`qty.${i.k}`,`${i.code} (${i.unit}, ${i.per})`,o.qty[i.k],{num:1,ph:"0"})).join("")}</div></fieldset>`;
   b.innerHTML=`<div class="issue"><div class="panel" style="display:grid;gap:14px" id="ltForm">${form}<div id="ltWarn"></div>
@@ -1528,7 +1536,7 @@ async function issuePurchase(){ if(!regOK()) return; const n=letterNums();
     toast("ออกเลขหนังสือแล้ว"); pd.seq=""; drawLetters(); deliver(purchaseHTML(full), `ขอซื้อแบบพิมพ์_${todayISO()}.pdf`, `${outNo(n.seq)} และ ${n.seq2}`);
   }catch(e){ writeErr(e); } }
 function openReserve(){ if(!regOK()) return; const r={date:todayISO(), subject:"", to:"", note:"", seq:""};
-  toolDialog("จองเลขหนังสือส่ง", `<p class="sub" style="margin:0 0 12px">ใช้กับหนังสือภายนอกที่พิมพ์จากโปรแกรมอื่น เลขจะต่อจากหนังสือส่งตัวและหนังสือขอซื้อแบบพิมพ์ในชุดเดียวกัน</p>
+  toolDialog("จองเลขหนังสือส่ง", `<p class="sub" style="margin:0 0 12px">ใช้กับหนังสือภายนอกที่พิมพ์จากโปรแกรมอื่น เลขจะต่อจากหนังสือส่งตัวและหนังสือขอซื้อแบบพิมพ์ในชุดเดียวกัน ถ้าขอเลขจากทะเบียนกลางของโรงเรียน ให้ใส่เลขนั้นในช่อง “เลขที่”${sheetLink()}</p>
     <div class="fgrid" id="rsForm">${fIn("date","ลงวันที่",r.date,{type:"date"})}${fIn("seq","เลขที่",r.seq,{num:1,ph:"อัตโนมัติ"})}${fIn("subject","เรื่อง *",r.subject,{cls:"wide"})}${fIn("to","เรียน",r.to,{cls:"wide"})}${fIn("note","หมายเหตุ",r.note,{cls:"wide"})}</div><p class="hint" id="rsNo"></p>`,
     `<button type="button" class="btn" data-close>ยกเลิก</button><button type="button" class="btn primary" id="rsGo">จองเลข</button>`);
   const show=()=>{ const y=docYear(r.date), n=numIn(r.seq)||nextSeq(y,"out"); $("#rsNo").textContent=`จะได้เลข ${D(outNo(n))}${seqTaken(y,"out",n)?" — เลขนี้ถูกใช้แล้ว":""}`; };
@@ -1729,7 +1737,7 @@ function renderSettings(){
     <label class="f" for="cf-numMode">การลงเลขที่ (ข้อ ๒๔.๑)<select id="cf-numMode" name="numMode">
       <option value="own" ${s.numMode!=="external"?"selected":""}>เลขเฉพาะหนังสือรับรอง (ลำดับ/พ.ศ.)</option>
       <option value="external" ${s.numMode==="external"?"selected":""}>ตามแบบหนังสือภายนอก (รหัสส่วนราชการ/ลำดับ)</option></select></label>
-    ${F("docPrefix","รหัสตัวพยัญชนะและเลขประจำส่วนราชการ","ศธ 04xxx.xxx/")}
+    ${F("docPrefix","รหัสตัวพยัญชนะและเลขประจำส่วนราชการ","ศธ 04xxx.xxx/")}${F("sheetUrl","ลิงก์ทะเบียนขอเลขหนังสือส่งของโรงเรียน (เช่น Google Sheet)","https://docs.google.com/spreadsheets/…","wide")}
     <div class="wide hint">ตัวอย่างเลขที่: <b>${h(D(fmtNumber(12,beYearNow())))}</b> — เริ่มนับ ๑ ใหม่ทุกปีปฏิทิน รหัสส่วนราชการใช้เฉพาะแบบหนังสือภายนอก</div>
     ${F("curriculum","ชื่อหลักสูตรการศึกษาขั้นพื้นฐาน (ใช้ในหนังสือรับรองการสำเร็จการศึกษา)","","wide")}
     ${F("curriculumEarly","ชื่อหลักสูตรระดับปฐมวัย (ใช้กับผู้จบชั้นอนุบาล)","","wide")}
